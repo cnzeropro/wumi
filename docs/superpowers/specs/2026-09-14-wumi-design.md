@@ -78,7 +78,7 @@
 | `createdAt` | Instant | 创建时间 |
 | `updatedAt` | Instant | LWW 合并依据 |
 | `deletedAt` | Instant? | 软删除墓碑，跨设备传播删除 |
-| `deviceId` | String | 最后修改者；LWW 平局决胜；预留家庭共享 |
+| `deviceId` | String | 最后修改者；LWW 平局决胜；预留家庭共享。首次启动生成 UUIDv4 持久化于本地，并登记到 manifest 设备注册表 |
 
 ### 5.2 实体清单
 
@@ -137,7 +137,7 @@ OutboxEntry    待推送队列：实体类型、记录 id、入队时间（与�
 ② 拉本地水位之后的 ops 分片 → 逐条 LWW 合并进本地 Room
 ③ 推本地 outbox → 新 ops 分片（PUT，If-Match/ETag 乐观锁）
 ④ PUT manifest；ETag 冲突 → 拉取合并重推（最多 3 轮，防活锁）
-⑤ 分片超阈值 → 写全量快照 + 清理旧分片（保留最近 K 片）
+⑤ 分片超阈值 → 写全量快照 + 清理旧分片（快照后保留最近 10 片 ops）
 ⑥ 更新本地水位
 ```
 
