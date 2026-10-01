@@ -1,0 +1,22 @@
+# EditorConfig: https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Kotlin / Java / Gradle / Android 资源与 ProGuard 规则
+[*.{kt,kts,java,gradle,xml,pro}]
+indent_size = 4
+
+# 配置与数据文件
+[*.{json,yml,yaml,toml,properties}]
+indent_size = 2
+
+# 文档
+[*.md]
+trim_trailing_whitespace = false

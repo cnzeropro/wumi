@@ -1,0 +1,32 @@
+# 文本文件自动识别并统一以 LF 存入仓库
+* text=auto eol=lf
+
+# Gradle Wrapper 与脚本固定 LF
+gradlew text eol=lf
+*.sh text eol=lf
+
+# Windows 批处理必须 CRLF（cmd.exe 兼容）
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# 二进制文件不参与文本归一化与 diff
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.ico binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.jar binary
+*.aar binary
+*.apk binary
+*.aab binary
+*.dex binary
+*.so binary
+*.jks binary
+*.keystore binary
+*.p12 binary
+*.zip binary
