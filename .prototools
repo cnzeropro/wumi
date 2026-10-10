@@ -1,0 +1,5 @@
+java = "21"
+gradle = "9.8.1"
+
+[plugins.tools]
+gradle = "https://raw.githubusercontent.com/eplightning/openjdk-adoptium-proto-plugin/main/build-plugins/gradle.toml"
