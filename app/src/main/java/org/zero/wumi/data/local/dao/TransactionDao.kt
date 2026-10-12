@@ -38,6 +38,11 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun getById(id: String): TransactionEntity?
 
+    /** 单笔交易连同账户/分类引用一次取全（含已软删，由调用方过滤）。 */
+    @Transaction
+    @Query("SELECT * FROM transactions WHERE id = :id")
+    suspend fun getByIdWithRefs(id: String): TxWithRefs?
+
     @Upsert
     suspend fun insert(e: TransactionEntity)
 

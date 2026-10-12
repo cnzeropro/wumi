@@ -60,6 +60,42 @@ class TransactionRepository @Inject constructor(
         note: String,
     ): String = insert(TxType.TRANSFER, amountMinor, currency, null, baseAmountMinor, accountId, targetAccountId, null, date, note)
 
+    /** 取单笔交易及其引用；已软删视为不存在（编辑页不可再打开）。 */
+    suspend fun getWithRefs(id: String): TxWithRefs? {
+        val ref = txDao.getByIdWithRefs(id) ?: return null
+        return if (ref.tx.deletedAt != null) null else ref
+    }
+
+    /**
+     * 编辑保存（LWW 语义）：upsert 覆盖原行——保持原 id 与 createdAt，
+     * 只 bump updatedAt/deviceId；并入队 outbox，同一事务。原交易不存在则静默忽略。
+     */
+    suspend fun update(
+        id: String,
+        type: Int,
+        amountMinor: Long,
+        currency: String,
+        baseAmountMinor: Long,
+        accountId: String,
+        targetAccountId: String?,
+        categoryId: String?,
+        date: Long,
+        note: String,
+    ) {
+        val now = System.currentTimeMillis()
+        val old = txDao.getById(id) ?: return
+        db.withTransaction {
+            txDao.insert(
+                old.copy(
+                    type = type, amountMinor = amountMinor, currency = currency, baseAmountMinor = baseAmountMinor,
+                    accountId = accountId, targetAccountId = targetAccountId, categoryId = categoryId,
+                    date = date, note = note, updatedAt = now, deviceId = deviceId,
+                ),
+            )
+            outboxDao.enqueue(OutboxEntity(entityType = "transaction", recordId = id, queuedAt = now))
+        }
+    }
+
     /** 软删除（写墓碑）并入队 outbox，同一事务。 */
     suspend fun softDelete(id: String) {
         val now = System.currentTimeMillis()

@@ -1,5 +1,6 @@
 package org.zero.wumi.ui.overview
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,7 +40,7 @@ import java.util.Locale
  * 金额符号约定：支出 `-`（红 error）、收入 `+`（主色）、转账 `↔`。
  */
 @Composable
-fun OverviewScreen(vm: OverviewViewModel = hiltViewModel()) {
+fun OverviewScreen(onOpenTx: (String) -> Unit = {}, vm: OverviewViewModel = hiltViewModel()) {
     val month by vm.month.collectAsStateWithLifecycle()
     val days by vm.days.collectAsStateWithLifecycle()
     val sums by vm.sums.collectAsStateWithLifecycle()
@@ -81,16 +82,16 @@ fun OverviewScreen(vm: OverviewViewModel = hiltViewModel()) {
                             Text(Money.format(group.dayTotalMinor, "CNY"), style = MaterialTheme.typography.labelLarge)
                         }
                     }
-                    items(group.items, key = { it.tx.id }) { ref -> TxRow(ref) }
+                    items(group.items, key = { it.tx.id }) { ref -> TxRow(ref, onOpenTx) }
                 }
             }
         }
     }
 }
 
-/** 单笔交易行：分类 emoji/名称（转账显示 源 → 目标）、备注、符号金额。 */
+/** 单笔交易行：分类 emoji/名称（转账显示 源 → 目标）、备注、符号金额；点击进入编辑页（Task 10）。 */
 @Composable
-private fun TxRow(ref: TxWithRefs) {
+private fun TxRow(ref: TxWithRefs, onOpen: (String) -> Unit) {
     val sign = when (ref.tx.type) { TxType.EXPENSE -> "-"; TxType.INCOME -> "+"; else -> "↔" }
     ListItem(
         headlineContent = {
@@ -102,6 +103,7 @@ private fun TxRow(ref: TxWithRefs) {
         supportingContent = { if (ref.tx.note.isNotBlank()) Text(ref.tx.note) },
         leadingContent = { Text(ref.category?.emoji ?: "🔄", style = MaterialTheme.typography.headlineSmall) },
         trailingContent = { Text("$sign${Money.format(ref.tx.amountMinor, ref.tx.currency)}") },
+        modifier = Modifier.clickable { onOpen(ref.tx.id) },
     )
     HorizontalDivider()
 }
