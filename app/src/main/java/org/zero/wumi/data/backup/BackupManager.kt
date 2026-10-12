@@ -79,7 +79,7 @@ class BackupManager(private val db: WumiDatabase, private val dir: File) {
      */
     suspend fun restoreFrom(file: File) = withContext(Dispatchers.IO) {
         val data = json.decodeFromString<BackupFile>(file.readText())
-        require(data.formatVersion == 1) { "不支持的备份格式版本: ${data.formatVersion}" }
+        require(data.formatVersion == 1) { "unsupported backup formatVersion: ${data.formatVersion}" }
         db.clearAllTables()
         db.withTransaction {
             data.accounts.forEach { db.accountDao().upsert(it) }

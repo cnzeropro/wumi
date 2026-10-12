@@ -9,6 +9,8 @@ class MoneyTest {
     @Test fun format_zero() { assertEquals("¥0.00", Money.format(0, "CNY")) }
     @Test fun format_negative() { assertEquals("-¥1,234.56", Money.format(-123456, "CNY")) }
     @Test fun format_zero_decimals_yen() { assertEquals("¥1,235", Money.format(1235, "JPY")) }
+    @Test fun formatNumeric_positive() { assertEquals("1,234.56", Money.formatNumeric(123456, "CNY")) }
+    @Test fun formatNumeric_negative() { assertEquals("-25.00", Money.formatNumeric(-2500, "CNY")) }
     @Test fun parse_plain() { assertEquals(123456L, Money.parseToMinor("1234.56", 2)) }
     @Test fun parse_with_thousands_and_symbol() { assertEquals(123456L, Money.parseToMinor("1,234.56", 2)) }
     @Test fun parse_more_decimals_rounds_half_up() { assertEquals(1235L, Money.parseToMinor("12.345", 2)) }

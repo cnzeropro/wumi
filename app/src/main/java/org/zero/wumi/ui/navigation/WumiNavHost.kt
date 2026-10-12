@@ -9,6 +9,7 @@ import androidx.navigation.navArgument
 import org.zero.wumi.ui.accounts.AccountsScreen
 import org.zero.wumi.ui.budget.BudgetScreen
 import org.zero.wumi.ui.categories.CategoriesScreen
+import org.zero.wumi.ui.export.ExportScreen
 import org.zero.wumi.ui.mine.MineScreen
 import org.zero.wumi.ui.overview.OverviewScreen
 import org.zero.wumi.ui.record.TransactionEditScreen
@@ -25,10 +26,12 @@ fun WumiNavHost(nav: NavHostController) {
             MineScreen(
                 onOpenAccounts = { nav.navigate(Routes.ACCOUNTS) },
                 onOpenCategories = { nav.navigate(Routes.CATEGORIES) },
+                onOpenExport = { nav.navigate(Routes.EXPORT) },
             )
         }
         composable(Routes.ACCOUNTS) { AccountsScreen() }
         composable(Routes.CATEGORIES) { CategoriesScreen() }
+        composable(Routes.EXPORT) { ExportScreen() }
         composable(
             route = Routes.TX_EDIT,
             arguments = listOf(navArgument("id") { type = NavType.StringType }),

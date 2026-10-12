@@ -11,16 +11,26 @@ object Money {
     private val symbols = mapOf("CNY" to "¥", "JPY" to "¥", "USD" to "$", "EUR" to "€")
 
     fun format(minor: Long, currency: String): String {
-        val decimals = decimalsOf(currency)
         val sym = symbols[currency] ?: "$currency "
         val sign = if (minor < 0) "-" else ""
+        return "$sign$sym${numericPart(minor, currency)}"
+    }
+
+    /** 纯数字形态（千分位 + decimalsOf 小数位，负号保留，无货币符号）——CSV 导出金额列用。 */
+    fun formatNumeric(minor: Long, currency: String): String {
+        val sign = if (minor < 0) "-" else ""
+        return sign + numericPart(minor, currency)
+    }
+
+    private fun numericPart(minor: Long, currency: String): String {
+        val decimals = decimalsOf(currency)
         val abs = kotlin.math.abs(minor)
         val fmtWhole = DecimalFormat("#,###", DecimalFormatSymbols(Locale.US))
-        return if (decimals == 0) "$sign$sym${fmtWhole.format(abs)}"
+        return if (decimals == 0) fmtWhole.format(abs)
         else {
             val whole = abs / pow10(decimals)
             val frac = abs % pow10(decimals)
-            "$sign$sym${fmtWhole.format(whole)}." + frac.toString().padStart(decimals, '0')
+            "${fmtWhole.format(whole)}." + frac.toString().padStart(decimals, '0')
         }
     }
 

@@ -11,6 +11,9 @@ object Routes {
     const val ACCOUNTS = "accounts"
     const val CATEGORIES = "categories"
 
+    /** 二级路由：数据导出（Task 12），从「我的」进入。 */
+    const val EXPORT = "export"
+
     /** 二级路由：交易编辑（Task 10），从明细页点交易行进入，{id} 为交易 id。 */
     const val TX_EDIT = "tx/{id}"
 
