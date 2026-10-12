@@ -17,6 +17,10 @@ interface CategoryDao {
     @Query("SELECT * FROM categories WHERE id = :id")
     suspend fun getById(id: String): CategoryEntity?
 
+    // 备份全量查询：含软删墓碑与归档行（spec §9.2 备份必须全量）
+    @Query("SELECT * FROM categories")
+    suspend fun allForBackup(): List<CategoryEntity>
+
     @Upsert
     suspend fun upsert(e: CategoryEntity)
 

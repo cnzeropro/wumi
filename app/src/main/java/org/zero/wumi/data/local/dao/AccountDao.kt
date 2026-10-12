@@ -15,6 +15,10 @@ interface AccountDao {
     @Query("SELECT * FROM accounts WHERE id = :id")
     suspend fun getById(id: String): AccountEntity?
 
+    // 备份全量查询：含软删墓碑与归档行（spec §9.2 备份必须全量）
+    @Query("SELECT * FROM accounts")
+    suspend fun allForBackup(): List<AccountEntity>
+
     @Upsert
     suspend fun upsert(e: AccountEntity)
 

@@ -2,6 +2,7 @@ package org.zero.wumi.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 /** 账户类型：现金/储蓄卡/支付宝/微信/信用卡/其他。 */
 object AccountType {
@@ -13,6 +14,8 @@ object AccountType {
     const val OTHER = 5
 }
 
+// @Serializable 供本地备份 JSON 导出/导入（spec §9.2），与 Room 注解共存无冲突
+@Serializable
 @Entity(tableName = "accounts")
 data class AccountEntity(
     @PrimaryKey override val id: String,

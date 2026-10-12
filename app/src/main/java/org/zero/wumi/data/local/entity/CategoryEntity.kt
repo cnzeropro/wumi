@@ -2,6 +2,7 @@ package org.zero.wumi.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 /** 分类方向：支出/收入。 */
 object CategoryType {
@@ -9,6 +10,8 @@ object CategoryType {
     const val INCOME = 1
 }
 
+// @Serializable 供本地备份 JSON 导出/导入（spec §9.2），与 Room 注解共存无冲突
+@Serializable
 @Entity(tableName = "categories")
 data class CategoryEntity(
     @PrimaryKey override val id: String,

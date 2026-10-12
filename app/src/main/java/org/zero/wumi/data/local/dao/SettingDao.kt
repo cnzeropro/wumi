@@ -16,4 +16,8 @@ interface SettingDao {
 
     @Upsert
     suspend fun put(e: SettingEntity)
+
+    // 备份全量查询（spec §9.2 备份必须全量）
+    @Query("SELECT * FROM settings")
+    suspend fun allForBackup(): List<SettingEntity>
 }

@@ -43,6 +43,10 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun getByIdWithRefs(id: String): TxWithRefs?
 
+    // 备份全量查询：含软删墓碑（spec §9.2 备份必须全量）
+    @Query("SELECT * FROM transactions")
+    suspend fun allForBackup(): List<TransactionEntity>
+
     @Upsert
     suspend fun insert(e: TransactionEntity)
 
