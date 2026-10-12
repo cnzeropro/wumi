@@ -56,4 +56,14 @@ class AccountDaoTest {
         assertNotNull(db.accountDao().getById(a.id))       // 墓碑仍在
         assertEquals(99L, db.accountDao().getById(a.id)?.deletedAt)
     }
+
+    @Test
+    fun archived_hides_from_observe_but_row_remains() = runTest {
+        // 删除保护：有交易的账户归档（写 archivedAt），主列表不再展示但行保留
+        val a = account(); db.accountDao().upsert(a)
+        db.accountDao().upsert(a.copy(archivedAt = 99L, updatedAt = 99L))
+        assertTrue(db.accountDao().observeAll().first().none { it.id == a.id })
+        assertNotNull(db.accountDao().getById(a.id))       // 归档行仍在
+        assertEquals(99L, db.accountDao().getById(a.id)?.archivedAt)
+    }
 }
