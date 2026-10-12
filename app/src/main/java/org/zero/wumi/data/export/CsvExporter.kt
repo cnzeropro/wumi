@@ -24,7 +24,11 @@ object CsvExporter {
                         else -> "转账"
                     },
                     r.category?.name ?: "",
-                    r.account?.name ?: "",
+                    // 转账对手方不能丢：转账行显示 "源 → 目标"，其余行只显示源账户
+                    when (r.tx.type) {
+                        TxType.TRANSFER -> "${r.account?.name ?: ""} → ${r.targetAccount?.name ?: ""}"
+                        else -> r.account?.name ?: ""
+                    },
                     formatAmount(r),
                     r.tx.currency,
                     r.tx.note,

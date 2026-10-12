@@ -38,10 +38,20 @@ class CsvExporterTest {
     }
 
     @Test fun escapes_comma_quote_newline() {
-        val csv = CsvExporter.export(listOf(TxWithRefs(tx("奶茶, \"半糖\"\n多冰"), acc, null, cat)))
-        // 备注含换行且被引号包裹：lines() 会在字段内部断行，先重建完整数据行再断言
-        val dataLine = csv.trim().lines().drop(1).joinToString("\n")
-        assertEquals("${expectedDate()},支出,餐饮,现金,-25.00,CNY,\"奶茶, \"\"半糖\"\"\n多冰\"", dataLine)
+        val csv = CsvExporter.export(listOf(TxWithRefs(tx("奶茶, \"半糖\"\r\n多冰"), acc, null, cat)))
+        // 备注含逗号/引号/CRLF 且被引号包裹：lines() 会在字段内部断行，先重建完整数据行再断言
+        val dataLine = csv.trim().lines().drop(1).joinToString("\r\n")
+        assertEquals("${expectedDate()},支出,餐饮,现金,-25.00,CNY,\"奶茶, \"\"半糖\"\"\r\n多冰\"", dataLine)
+    }
+
+    @Test fun transfer_row_shows_source_and_target() {
+        val tgt = AccountEntity(uuid7(), "银行卡", "💳", "CNY", 0, AccountType.BANK, createdAt = 1, updatedAt = 1, deviceId = dev)
+        val transfer = TransactionEntity(
+            uuid7(), TxType.TRANSFER, 5000, "CNY", null, 5000, acc.id, tgt.id, null, date, "", TxSource.MANUAL, 1, 1, null, dev,
+        )
+        val csv = CsvExporter.export(listOf(TxWithRefs(transfer, acc, tgt, null)))
+        // 转账行：类型=转账、分类空、账户="源 → 目标"、金额无符号
+        assertEquals("${expectedDate()},转账,,现金 → 银行卡,50.00,CNY,", csv.trim().lines()[1])
     }
 
     @Test fun empty_list_header_only() {
