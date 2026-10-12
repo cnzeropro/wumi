@@ -43,13 +43,15 @@ class BackupManager(private val db: WumiDatabase, private val dir: File) {
 
     /** 全量导出为单 JSON 文件（含软删墓碑），返回原子 rename 后的最终文件。 */
     suspend fun backupNow(): File = withContext(Dispatchers.IO) {
-        val snapshot = BackupFile(
-            exportedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
-            accounts = db.accountDao().allForBackup(),
-            categories = db.categoryDao().allForBackup(),
-            transactions = db.transactionDao().allForBackup(),
-            settings = db.settingDao().allForBackup(),
-        )
+        val snapshot = db.withTransaction {
+            BackupFile(
+                exportedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                accounts = db.accountDao().allForBackup(),
+                categories = db.categoryDao().allForBackup(),
+                transactions = db.transactionDao().allForBackup(),
+                settings = db.settingDao().allForBackup(),
+            )
+        }
         val tmp = File(dir, "wumi-backup-${LocalDateTime.now().format(stamp)}.json.tmp")
         tmp.writeText(json.encodeToString(snapshot))
         val final = File(dir, tmp.name.removeSuffix(".tmp"))
@@ -77,6 +79,7 @@ class BackupManager(private val db: WumiDatabase, private val dir: File) {
      */
     suspend fun restoreFrom(file: File) = withContext(Dispatchers.IO) {
         val data = json.decodeFromString<BackupFile>(file.readText())
+        require(data.formatVersion == 1) { "不支持的备份格式版本: ${data.formatVersion}" }
         db.clearAllTables()
         db.withTransaction {
             data.accounts.forEach { db.accountDao().upsert(it) }

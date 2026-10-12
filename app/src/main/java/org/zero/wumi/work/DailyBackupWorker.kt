@@ -7,6 +7,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CancellationException
 import org.zero.wumi.data.backup.BackupManager
 
 /** 每日滚动备份任务（spec §9.2）：备份一次 + 滚动保留 7 份；失败退避重试。 */
@@ -22,6 +23,7 @@ class DailyBackupWorker @AssistedInject constructor(
         backups.rotate()
         Result.success()
     } catch (e: Exception) {
+        if (e is CancellationException) throw e
         Log.e(TAG, "daily backup failed, attempt $runAttemptCount", e)
         Result.retry()
     }
