@@ -64,10 +64,11 @@ fun OverviewScreen(vm: OverviewViewModel = hiltViewModel()) {
             }
         }
         if (days.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("本月还没有记录") }
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { Text("本月还没有记录") }
         } else {
             // 按日分组列表：日期小计头 + 当日交易（DAO date DESC，最新在上）
-            LazyColumn {
+            // weight(1f) 占满剩余高度，否则视口底边超出屏幕，月末条目滚动到底也不可见
+            LazyColumn(Modifier.weight(1f)) {
                 days.forEach { group ->
                     item(key = "header-${group.date}") {
                         // material3 1.3.2 无 ListSubheader（1.4.0 才有），用 Row 自绘日期小计头

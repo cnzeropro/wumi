@@ -26,7 +26,6 @@ import org.zero.wumi.data.local.entity.TxSource
 import org.zero.wumi.data.local.entity.TxType
 import org.zero.wumi.data.repo.TransactionRepository
 import org.zero.wumi.util.uuid7
-import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneId
 
@@ -84,9 +83,11 @@ class OverviewViewModelTest {
 
     @Test
     fun month_sums_reflect_current_month() = runTest(dispatcher) {
-        val now = Instant.now().toEpochMilli()
-        tx(TxType.EXPENSE, 3000, now)
-        tx(TxType.INCOME, 8000, now)
+        val ym = YearMonth.now(ZoneId.systemDefault())   // 与测试 1 同款：固定日期造数，避免跨月边界竞态
+        val zone = ZoneId.systemDefault()
+        val d10 = ym.atDay(10).atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+        tx(TxType.EXPENSE, 3000, d10)
+        tx(TxType.INCOME, 8000, d10)
         advanceUntilIdle()
         val sums = vm.sums.first { it.expenseMinor > 0 }
         assertEquals(3000L, sums.expenseMinor)
