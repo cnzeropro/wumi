@@ -7,6 +7,7 @@ object Routes {
     const val BUDGET = "budget"
     const val MINE = "mine"
 
-    /** 二级路由：账户管理（从「我的」进入，Task 6）。 */
+    /** 二级路由：账户管理（Task 6）与分类管理（Task 7），均从「我的」进入。 */
     const val ACCOUNTS = "accounts"
+    const val CATEGORIES = "categories"
 }

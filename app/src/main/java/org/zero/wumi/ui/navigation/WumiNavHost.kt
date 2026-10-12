@@ -6,6 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import org.zero.wumi.ui.accounts.AccountsScreen
 import org.zero.wumi.ui.budget.BudgetScreen
+import org.zero.wumi.ui.categories.CategoriesScreen
 import org.zero.wumi.ui.mine.MineScreen
 import org.zero.wumi.ui.overview.OverviewScreen
 import org.zero.wumi.ui.stats.StatsScreen
@@ -17,7 +18,13 @@ fun WumiNavHost(nav: NavHostController) {
         composable(Routes.OVERVIEW) { OverviewScreen() }
         composable(Routes.STATS) { StatsScreen() }
         composable(Routes.BUDGET) { BudgetScreen() }
-        composable(Routes.MINE) { MineScreen(onOpenAccounts = { nav.navigate(Routes.ACCOUNTS) }) }
+        composable(Routes.MINE) {
+            MineScreen(
+                onOpenAccounts = { nav.navigate(Routes.ACCOUNTS) },
+                onOpenCategories = { nav.navigate(Routes.CATEGORIES) },
+            )
+        }
         composable(Routes.ACCOUNTS) { AccountsScreen() }
+        composable(Routes.CATEGORIES) { CategoriesScreen() }
     }
 }

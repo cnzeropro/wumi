@@ -12,14 +12,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 
-/** 我的页：「账户管理」入口（Task 6），其余 v0.1 仍为占位。 */
+/** 我的页：「账户管理」「分类管理」入口（Task 6/7），其余 v0.1 仍为占位。 */
 @Composable
-fun MineScreen(onOpenAccounts: () -> Unit = {}) {
+fun MineScreen(onOpenAccounts: () -> Unit = {}, onOpenCategories: () -> Unit = {}) {
     Column(Modifier.fillMaxSize()) {
         ListItem(
             headlineContent = { Text("账户管理") },
             leadingContent = { Text("🏦", style = MaterialTheme.typography.headlineSmall) },
             modifier = Modifier.clickable { onOpenAccounts() },
+        )
+        HorizontalDivider()
+        ListItem(
+            headlineContent = { Text("分类管理") },
+            leadingContent = { Text("🏷️", style = MaterialTheme.typography.headlineSmall) },
+            modifier = Modifier.clickable { onOpenCategories() },
         )
         HorizontalDivider()
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("我的") }
