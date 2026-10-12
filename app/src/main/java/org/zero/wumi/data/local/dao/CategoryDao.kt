@@ -20,6 +20,6 @@ interface CategoryDao {
     @Upsert
     suspend fun upsert(e: CategoryEntity)
 
-    @Query("UPDATE categories SET deletedAt = :at, updatedAt = :at WHERE id = :id")
-    suspend fun softDelete(id: String, at: Long)
+    @Query("UPDATE categories SET deletedAt = :at, updatedAt = :at, deviceId = :device WHERE id = :id")
+    suspend fun softDelete(id: String, at: Long, device: String)
 }

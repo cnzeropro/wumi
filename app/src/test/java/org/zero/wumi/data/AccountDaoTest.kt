@@ -51,7 +51,7 @@ class AccountDaoTest {
     @Test
     fun softDelete_hides_from_observe_but_row_remains() = runTest {
         val a = account(); db.accountDao().upsert(a)
-        db.accountDao().softDelete(a.id, 99L)
+        db.accountDao().softDelete(a.id, 99L, dev)
         assertTrue(db.accountDao().observeAll().first().isEmpty())
         assertNotNull(db.accountDao().getById(a.id))       // 墓碑仍在
         assertEquals(99L, db.accountDao().getById(a.id)?.deletedAt)

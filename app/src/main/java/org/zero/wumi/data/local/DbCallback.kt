@@ -26,6 +26,7 @@ object DefaultSeed {
  * 用 [onOpen] 而非 onCreate 做幂等种子：deviceId 读取会先用无 callback 的独立连接
  * 建库，主库打开时文件已存在，onCreate 不再触发；改为「表空才插入」，与建库顺序无关。
  * 以全表 COUNT（含已软删）判断是否种过，避免用户删光分类后重启被重新种回。
+ * INSERT 包在事务里：首启中途被杀时种子要么全写入要么全回滚，不会残留半份种子。
  */
 class WumiDbCallback(private val deviceId: String) : RoomDatabase.Callback() {
     override fun onOpen(db: SupportSQLiteDatabase) {
@@ -36,13 +37,18 @@ class WumiDbCallback(private val deviceId: String) : RoomDatabase.Callback() {
         }
         if (seeded) return
         val now = System.currentTimeMillis()
-        DefaultSeed.categories(now, deviceId).forEach { c ->
-            db.execSQL(
-                // VALUES 顺序须与 categories 列顺序严格一致：
-                // id, parentId, type, name, emoji, sortOrder, archivedAt, createdAt, updatedAt, deletedAt, deviceId
-                "INSERT INTO categories VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                arrayOf(c.id, c.parentId, c.type, c.name, c.emoji, c.sortOrder, c.archivedAt, c.createdAt, c.updatedAt, c.deletedAt, c.deviceId),
-            )
+        db.beginTransaction()
+        try {
+            DefaultSeed.categories(now, deviceId).forEach { c ->
+                db.execSQL(
+                    // VALUES 顺序须与 categories 列顺序严格一致：
+                    // id, parentId, type, name, emoji, sortOrder, archivedAt, createdAt, updatedAt, deletedAt, deviceId
+                    "INSERT INTO categories VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    arrayOf(c.id, c.parentId, c.type, c.name, c.emoji, c.sortOrder, c.archivedAt, c.createdAt, c.updatedAt, c.deletedAt, c.deviceId),
+                )
+            }
+        } finally {
+            db.endTransaction()
         }
     }
 }

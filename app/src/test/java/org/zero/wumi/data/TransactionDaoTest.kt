@@ -58,7 +58,7 @@ class TransactionDaoTest {
         val a = acc("微信"); db.accountDao().upsert(a)
         val t = tx(TxType.EXPENSE, 9999, 1_700_000_000_000, a.id)
         db.transactionDao().insert(t)
-        db.transactionDao().softDelete(t.id, 2L)
+        db.transactionDao().softDelete(t.id, 2L, dev)
         val sums = db.transactionDao().sumsInRange(0, 2_000_000_000_000).first()
         assertEquals(0L, sums.expenseMinor)
     }

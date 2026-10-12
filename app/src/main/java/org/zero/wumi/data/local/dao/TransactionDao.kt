@@ -41,8 +41,8 @@ interface TransactionDao {
     @Upsert
     suspend fun insert(e: TransactionEntity)
 
-    @Query("UPDATE transactions SET deletedAt = :at, updatedAt = :at WHERE id = :id")
-    suspend fun softDelete(id: String, at: Long)
+    @Query("UPDATE transactions SET deletedAt = :at, updatedAt = :at, deviceId = :device WHERE id = :id")
+    suspend fun softDelete(id: String, at: Long, device: String)
 
     // 转账计入双方流水（in/out 各算一次）：对方账户侧按 targetAccountId 命中，
     // 供「账户下有交易只能归档」（spec §9.2）等口径使用
