@@ -149,7 +149,12 @@ class RecordViewModel @Inject constructor(
             // v0.1 单本位币：原币金额 = 本位币金额，币种固定 CNY（多币种 v0.2）
             val txId = when (type) {
                 TxType.INCOME -> txRepo.addIncome(amount, "CNY", amount, accId, sel.categoryId, date, sel.note)
-                TxType.TRANSFER -> txRepo.addTransfer(amount, "CNY", amount, accId, sel.targetAccountId!!, date, sel.note)
+                TxType.TRANSFER -> {
+                    // 运行时守卫：目标账户缺失或与转出相同则忽略（canSave 已挡，此处防程序化调用）
+                    val target = sel.targetAccountId
+                    if (target == null || target == accId) return@launch
+                    txRepo.addTransfer(amount, "CNY", amount, accId, target, date, sel.note)
+                }
                 else -> txRepo.addExpense(amount, "CNY", amount, accId, sel.categoryId, date, sel.note)
             }
             _amount.value = ""

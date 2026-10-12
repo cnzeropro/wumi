@@ -12,7 +12,7 @@ import kotlinx.coroutines.launch
 import org.zero.wumi.data.repo.TransactionRepository
 import javax.inject.Inject
 
-/** 撤销最近一笔：缓存 txId，撤销即软删。Activity 作用域（spec §7.2 Snackbar 撤销）。 */
+/** 撤销：缓存最近 txId 供 UI 判断可撤销入口，软删按调用方传入的 txId 执行。Activity 作用域（spec §7.2 Snackbar 撤销）。 */
 @HiltViewModel
 class UndoViewModel @Inject constructor(private val txRepo: TransactionRepository) : ViewModel() {
     private val _recentTxId = MutableStateFlow<String?>(null)
@@ -24,9 +24,8 @@ class UndoViewModel @Inject constructor(private val txRepo: TransactionRepositor
     /** 缓存最近一笔的 txId，作为可撤销对象。 */
     fun record(id: String) { _recentTxId.value = id }
 
-    /** 软删最近一笔并清空缓存（无缓存时为空操作，重复撤销无害）。 */
-    fun undo() {
-        _recentTxId.value?.let { id -> viewModelScope.launch { txRepo.softDelete(id) } }
-        _recentTxId.value = null
+    /** 软删指定 txId——撤销发出该 Snackbar 时捕获的那笔，不读缓存（连续记账覆盖槽位也不会删错笔）。 */
+    fun undo(txId: String) {
+        viewModelScope.launch { txRepo.softDelete(txId) }
     }
 }

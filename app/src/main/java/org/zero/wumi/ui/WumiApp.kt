@@ -85,9 +85,10 @@ fun WumiApp(undoVm: UndoViewModel = viewModel()) {
                 showRecord = false
                 undoVm.record(txId)
                 scope.launch {
-                    // Snackbar 撤销（spec §7.2）：点「撤销」软删刚记的那笔
+                    // Snackbar 撤销（spec §7.2）：点「撤销」软删发出本 Snackbar 的那一笔（捕获 txId，
+                    // 连续记账时槽位可能已被覆盖，读槽位会删错笔）
                     val result = snackbar.showSnackbar("已记一笔", actionLabel = "撤销")
-                    if (result == SnackbarResult.ActionPerformed) undoVm.undo()
+                    if (result == SnackbarResult.ActionPerformed) undoVm.undo(txId)
                 }
             },
         )
