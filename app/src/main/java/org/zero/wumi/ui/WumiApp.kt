@@ -56,7 +56,13 @@ fun WumiApp(undoVm: UndoViewModel = viewModel()) {
     )
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
-        floatingActionButton = { FloatingActionButton(onClick = { showRecord = true }) { Icon(Icons.Filled.Add, "记一笔") } },
+        floatingActionButton = {
+            // 记一笔入口只在明细页显示——二级页（账户/分类/导出）有自己的操作按钮，
+            // 全局 FAB 常驻会遮挡页面按钮并劫持点击（真机验收发现）
+            if (current == Routes.OVERVIEW) {
+                FloatingActionButton(onClick = { showRecord = true }) { Icon(Icons.Filled.Add, "记一笔") }
+            }
+        },
         bottomBar = {
             NavigationBar {
                 tabs.forEach { t ->

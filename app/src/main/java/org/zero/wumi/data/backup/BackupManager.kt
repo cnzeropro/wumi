@@ -34,7 +34,8 @@ data class BackupFile(
  * 保留策略：滚动保留最近 [rotate] 份（默认 7），按文件名（内嵌时间戳）倒序判定新旧。
  */
 class BackupManager(private val db: WumiDatabase, private val dir: File) {
-    private val json = Json { prettyPrint = true }
+    // encodeDefaults：formatVersion 等默认值字段必须显式落盘（与 JsonExporter 口径一致）
+    private val json = Json { prettyPrint = true; encodeDefaults = true }
     private val stamp = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss")
 
     init {
