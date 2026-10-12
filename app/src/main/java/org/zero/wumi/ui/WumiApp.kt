@@ -13,24 +13,41 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.launch
 import org.zero.wumi.ui.navigation.Routes
 import org.zero.wumi.ui.navigation.WumiNavHost
+import org.zero.wumi.ui.record.RecordSheet
+import org.zero.wumi.ui.record.UndoViewModel
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
-/** 应用骨架：底部 4 tab + 中央 ⊕ FAB 记一笔（spec §7.2），FAB 点击由 Task 8 接入。 */
+/**
+ * 应用骨架：底部 4 tab + 右下 FAB 记一笔 + Snackbar 撤销（spec §7.2）。
+ * 记一笔面板与撤销均挂在 Activity 作用域（不在 NavHost 内，hiltViewModel/viewModel 即 Activity 级）。
+ */
 @Composable
-fun WumiApp() {
+fun WumiApp(undoVm: UndoViewModel = viewModel()) {
     val nav = rememberNavController()
     val backStack by nav.currentBackStackEntryAsState()
     val current = backStack?.destination?.route
+    val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
+    var showRecord by remember { mutableStateOf(false) }
     val tabs = listOf(
         Tab(Routes.OVERVIEW, "明细", Icons.Filled.Savings),
         Tab(Routes.STATS, "图表", Icons.Filled.PieChart),
@@ -38,7 +55,8 @@ fun WumiApp() {
         Tab(Routes.MINE, "我的", Icons.Filled.Person),
     )
     Scaffold(
-        floatingActionButton = { FloatingActionButton(onClick = { /* Task 8 接入记一笔 */ }) { Icon(Icons.Filled.Add, "记一笔") } },
+        snackbarHost = { SnackbarHost(snackbar) },
+        floatingActionButton = { FloatingActionButton(onClick = { showRecord = true }) { Icon(Icons.Filled.Add, "记一笔") } },
         bottomBar = {
             NavigationBar {
                 tabs.forEach { t ->
@@ -59,5 +77,19 @@ fun WumiApp() {
         },
     ) { padding ->
         Box(Modifier.padding(padding)) { WumiNavHost(nav) }
+    }
+    if (showRecord) {
+        RecordSheet(
+            onDismiss = { showRecord = false },
+            onSaved = { txId ->
+                showRecord = false
+                undoVm.record(txId)
+                scope.launch {
+                    // Snackbar 撤销（spec §7.2）：点「撤销」软删刚记的那笔
+                    val result = snackbar.showSnackbar("已记一笔", actionLabel = "撤销")
+                    if (result == SnackbarResult.ActionPerformed) undoVm.undo()
+                }
+            },
+        )
     }
 }
