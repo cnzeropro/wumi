@@ -58,6 +58,6 @@ fun WumiApp() {
             }
         },
     ) { padding ->
-        Box(Modifier.padding(padding)) { WumiNavHost() }
+        Box(Modifier.padding(padding)) { WumiNavHost(nav) }
     }
 }
