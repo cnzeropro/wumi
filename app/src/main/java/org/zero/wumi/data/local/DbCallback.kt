@@ -47,6 +47,7 @@ class WumiDbCallback(private val deviceId: String) : RoomDatabase.Callback() {
                     arrayOf(c.id, c.parentId, c.type, c.name, c.emoji, c.sortOrder, c.archivedAt, c.createdAt, c.updatedAt, c.deletedAt, c.deviceId),
                 )
             }
+            db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
         }
