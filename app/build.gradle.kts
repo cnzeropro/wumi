@@ -41,6 +41,22 @@ kotlin {
     }
 }
 
+// Room schema 导出目录（exportSchema = true），迁移测试与 schema 演进追溯用
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+tasks.withType<Test>().configureEach {
+    // Robolectric 4.16 解析本地仓库的顺序为 maven.repo.local 系统属性 → ~/.m2/settings.xml
+    // 的 localRepository → 默认值，且读 settings.xml 时不插值 ${user.home}，字面量在 Windows
+    // 上被相对解析成 app/${user.home}/... 必然 NoSuchFile。本机 settings.xml 恰写了该字面量，
+    // 故显式传 Maven 标准属性指向真实仓库（其默认值）绕开。
+    systemProperty(
+        "maven.repo.local",
+        providers.systemProperty("user.home").get() + File.separator + ".m2" + File.separator + "repository",
+    )
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
