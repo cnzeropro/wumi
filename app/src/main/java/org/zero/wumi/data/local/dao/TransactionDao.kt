@@ -22,6 +22,17 @@ data class TxWithRefs(
 /** 月度汇总（本位币口径，单位分）。 */
 data class MonthSums(val incomeMinor: Long, val expenseMinor: Long)
 
+/**
+ * 分类聚合行（本位币口径，单位分），供环形图切片。
+ * LEFT JOIN 分类表且不过滤 c.deletedAt：软删/缺失分类的历史交易仍入图，此时 emoji/name 可能为 null，由 UI 兜底显示。
+ */
+data class CategorySum(
+    val emoji: String?,
+    val name: String?,
+    val categoryId: String?,
+    val total: Long,
+)
+
 @Dao
 interface TransactionDao {
     @Transaction
@@ -34,6 +45,15 @@ interface TransactionDao {
             "FROM transactions WHERE deletedAt IS NULL AND date >= :from AND date < :to",
     )
     fun sumsInRange(from: Long, to: Long): Flow<MonthSums>
+
+    /** 分类聚合（环形图切片）：按 categoryId 汇总 baseAmountMinor 降序；软删分类不过滤（历史交易仍入图）。 */
+    @Query(
+        "SELECT c.emoji AS emoji, c.name AS name, t.categoryId AS categoryId, SUM(t.baseAmountMinor) AS total " +
+            "FROM transactions t LEFT JOIN categories c ON c.id = t.categoryId " +
+            "WHERE t.date >= :from AND t.date < :to AND t.deletedAt IS NULL AND t.type = :type AND t.categoryId IS NOT NULL " +
+            "GROUP BY t.categoryId ORDER BY total DESC",
+    )
+    fun sumByCategory(from: Long, to: Long, type: Int): Flow<List<CategorySum>>
 
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun getById(id: String): TransactionEntity?

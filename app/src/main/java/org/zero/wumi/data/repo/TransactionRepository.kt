@@ -3,6 +3,7 @@ package org.zero.wumi.data.repo
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import org.zero.wumi.data.local.WumiDatabase
+import org.zero.wumi.data.local.dao.CategorySum
 import org.zero.wumi.data.local.dao.MonthSums
 import org.zero.wumi.data.local.dao.OutboxDao
 import org.zero.wumi.data.local.dao.TransactionDao
@@ -30,6 +31,10 @@ class TransactionRepository @Inject constructor(
     fun observeRange(from: Long, to: Long): Flow<List<TxWithRefs>> = txDao.observeRange(from, to)
 
     fun observeMonthSums(from: Long, to: Long): Flow<MonthSums> = txDao.sumsInRange(from, to)
+
+    /** 分类聚合（本位币口径）：环形图切片，emoji/name 由 JOIN 带出（软删分类历史交易仍入图）。 */
+    fun observeSumsByCategory(from: Long, to: Long, type: Int): Flow<List<CategorySum>> =
+        txDao.sumByCategory(from, to, type)
 
     /**
      * 记支出：baseAmountMinor 由 [fxRate] 当笔汇率快照换算（FxConverter 唯一出口）并随笔记入
