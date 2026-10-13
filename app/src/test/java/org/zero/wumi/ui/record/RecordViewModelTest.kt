@@ -195,4 +195,60 @@ class RecordViewModelTest {
         vm.selectAccount(cny)
         assertEquals(null, vm.uiState.first { it.fxRate == null }.fxRate)
     }
+
+    @Test
+    fun save_jpy_amount_uses_account_decimals() = runTest(dispatcher) {
+        // 金额解析按账户币种小数位：JPY 0 位，"1000" → 1000（而非按 2 位算成 100000）
+        keepUiStateHot()
+        val jpy = seedAccount("JPY")
+        vm.uiState.first { it.accounts.isNotEmpty() }
+        vm.selectAccount(jpy)
+        advanceUntilIdle()
+        vm.inputDigit('1'); vm.inputDigit('0'); vm.inputDigit('0'); vm.inputDigit('0')
+        advanceUntilIdle()
+        val done = CompletableDeferred<String>()
+        vm.save { done.complete(it) }
+        advanceUntilIdle()
+        done.await()
+        val tx = db.transactionDao().observeRange(0, Long.MAX_VALUE).first().first()
+        assertEquals(1000L, tx.tx.amountMinor)
+        assertEquals("JPY", tx.tx.currency)
+        assertEquals(1000L, tx.tx.baseAmountMinor)        // 未种汇率表 → fxRate 缺省 "1"
+    }
+
+    @Test
+    fun override_fx_rate_recomputes_preview() = runTest(dispatcher) {
+        keepUiStateHot()
+        CurrencyRepository(db, db.currencyDao(), db.outboxDao(), db.settingDao(), "dev-test").seedIfEmpty()
+        val usd = seedAccount("USD")
+        vm.uiState.first { it.accounts.isNotEmpty() }
+        vm.selectAccount(usd)
+        vm.inputDigit('1'); vm.inputDigit('0'); vm.inputDigit('0')   // 100.00 USD = 10000¢
+        val s = vm.uiState.first { it.fxRate != null }
+        assertEquals("7.12", s.fxRate)
+        assertEquals(71200L, s.basePreviewMinor)          // 10000¢ × 7.12 = ¥712.00
+        vm.setFxRate("7.5")
+        val s2 = vm.uiState.first { it.fxRate == "7.5" }
+        assertEquals(75000L, s2.basePreviewMinor)         // 改当笔汇率后折算实时重算
+    }
+
+    @Test
+    fun save_fx_expense_passes_snapshot() = runTest(dispatcher) {
+        keepUiStateHot()
+        CurrencyRepository(db, db.currencyDao(), db.outboxDao(), db.settingDao(), "dev-test").seedIfEmpty()
+        val usd = seedAccount("USD")
+        vm.uiState.first { it.accounts.isNotEmpty() }
+        vm.selectAccount(usd)
+        vm.uiState.first { it.fxRate != null }            // 等汇率初始化完成再记账
+        vm.inputDigit('1'); vm.inputDigit('0')            // $10.00 = 1000¢
+        val done = CompletableDeferred<String>()
+        vm.save { done.complete(it) }
+        advanceUntilIdle()
+        done.await()
+        val tx = db.transactionDao().observeRange(0, Long.MAX_VALUE).first().first()
+        assertEquals(1000L, tx.tx.amountMinor)
+        assertEquals("USD", tx.tx.currency)
+        assertEquals("7.12", tx.tx.exchangeRate)          // 当笔汇率快照入库
+        assertEquals(7120L, tx.tx.baseAmountMinor)        // 1000¢ × 7.12
+    }
 }

@@ -70,7 +70,7 @@ class AccountsViewModelTest {
         advanceUntilIdle()
         val accId = vm.state.first { it.accounts.isNotEmpty() }.accounts.first().id
         TransactionRepository(db, db.transactionDao(), db.outboxDao(), "dev-test")
-            .addExpense(100, "CNY", 100, accId, null, 1_700_000_000_000, "")
+            .addExpense(100, "CNY", accId, null, 1_700_000_000_000, "")
         // 归档判定在仓库层（跨协程取 ViewModel 结果不可靠），直接断言仓库返回值
         val result = repo.archiveOrDelete(accId)
         advanceUntilIdle()

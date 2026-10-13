@@ -11,6 +11,7 @@ import org.zero.wumi.data.local.entity.OutboxEntity
 import org.zero.wumi.data.local.entity.TransactionEntity
 import org.zero.wumi.data.local.entity.TxType
 import org.zero.wumi.di.DeviceId
+import org.zero.wumi.util.FxConverter
 import org.zero.wumi.util.uuid7
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -30,25 +31,38 @@ class TransactionRepository @Inject constructor(
 
     fun observeMonthSums(from: Long, to: Long): Flow<MonthSums> = txDao.sumsInRange(from, to)
 
+    /**
+     * 记支出：baseAmountMinor 由 [fxRate] 当笔汇率快照换算（FxConverter 唯一出口）并随笔记入
+     * exchangeRate（本位币传 "1"）；与 outbox 入队同事务。
+     */
     suspend fun addExpense(
         amountMinor: Long,
         currency: String,
-        baseAmountMinor: Long,
         accountId: String,
         categoryId: String?,
         date: Long,
         note: String,
-    ): String = insert(TxType.EXPENSE, amountMinor, currency, null, baseAmountMinor, accountId, null, categoryId, date, note)
+        fxRate: String = "1",
+    ): String = insert(
+        TxType.EXPENSE, amountMinor, currency, fxRate,
+        FxConverter.toBaseMinor(amountMinor, fxRate),
+        accountId, null, categoryId, date, note,
+    )
 
+    /** 记收入：换算与快照语义同 [addExpense]。 */
     suspend fun addIncome(
         amountMinor: Long,
         currency: String,
-        baseAmountMinor: Long,
         accountId: String,
         categoryId: String?,
         date: Long,
         note: String,
-    ): String = insert(TxType.INCOME, amountMinor, currency, null, baseAmountMinor, accountId, null, categoryId, date, note)
+        fxRate: String = "1",
+    ): String = insert(
+        TxType.INCOME, amountMinor, currency, fxRate,
+        FxConverter.toBaseMinor(amountMinor, fxRate),
+        accountId, null, categoryId, date, note,
+    )
 
     suspend fun addTransfer(
         amountMinor: Long,

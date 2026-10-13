@@ -46,7 +46,7 @@ class TransactionEditTest {
     @Test
     fun update_keeps_id_and_createdAt_bumps_updatedAt() = runTest {
         val a = AccountEntity(uuid7(), "现金", "💵", "CNY", 0, AccountType.CASH, createdAt = 1, updatedAt = 1, deviceId = dev).also { db.accountDao().upsert(it) }
-        val id = repo.addExpense(2500, "CNY", 2500, a.id, null, 1_700_000_000_000, "午饭")
+        val id = repo.addExpense(2500, "CNY", a.id, null, 1_700_000_000_000, "午饭")
         val before = db.transactionDao().getById(id)!!
         repo.update(id, TxType.EXPENSE, 3500, "CNY", 3500, a.id, null, null, before.date, "晚饭加鸡腿")
         val after = db.transactionDao().getById(id)!!
@@ -59,7 +59,7 @@ class TransactionEditTest {
     @Test
     fun update_enqueues_outbox() = runTest {
         val a = AccountEntity(uuid7(), "现金", "💵", "CNY", 0, AccountType.CASH, createdAt = 1, updatedAt = 1, deviceId = dev).also { db.accountDao().upsert(it) }
-        val id = repo.addExpense(100, "CNY", 100, a.id, null, 1L, "")
+        val id = repo.addExpense(100, "CNY", a.id, null, 1L, "")
         val beforeCount = db.outboxDao().pending().size
         repo.update(id, TxType.EXPENSE, 200, "CNY", 200, a.id, null, null, 1L, "")
         assertEquals(beforeCount + 1, db.outboxDao().pending().size)
@@ -68,7 +68,7 @@ class TransactionEditTest {
     @Test
     fun deleted_tx_not_editable_getWithRefs_returns_null_after_softDelete() = runTest {
         val a = AccountEntity(uuid7(), "现金", "💵", "CNY", 0, AccountType.CASH, createdAt = 1, updatedAt = 1, deviceId = dev).also { db.accountDao().upsert(it) }
-        val id = repo.addExpense(100, "CNY", 100, a.id, null, 1L, "")
+        val id = repo.addExpense(100, "CNY", a.id, null, 1L, "")
         assertNotNull(repo.getWithRefs(id))
         repo.softDelete(id)
         assertNull(repo.getWithRefs(id))

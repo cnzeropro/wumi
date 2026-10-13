@@ -45,14 +45,25 @@ class RepositoryOutboxTest {
         name: String = "现金",
         emoji: String = "💵",
         type: Int = AccountType.CASH,
+        currency: String = "CNY",
     ): AccountEntity =
-        AccountEntity(uuid7(), name, emoji, "CNY", 0, type, createdAt = 1, updatedAt = 1, deviceId = dev)
+        AccountEntity(uuid7(), name, emoji, currency, 0, type, createdAt = 1, updatedAt = 1, deviceId = dev)
             .also { db.accountDao().upsert(it) }
+
+    @Test
+    fun add_fx_expense_snapshots_rate_and_base() = runTest {
+        // 外币入库：baseAmountMinor 由当笔汇率快照换算（FxConverter 唯一出口），汇率随笔落库
+        val usd = seedAccount(currency = "USD")
+        repo.addExpense(amountMinor = 100, currency = "USD", accountId = usd.id, categoryId = null, date = 1_700_000_000_000, note = "", fxRate = "7.12")
+        val tx = db.transactionDao().observeRange(0, Long.MAX_VALUE).first().first()
+        assertEquals(712L, tx.tx.baseAmountMinor)      // 100¢ × 7.12 = 712 分
+        assertEquals("7.12", tx.tx.exchangeRate)
+    }
 
     @Test
     fun addExpense_writes_tx_and_outbox_atomically() = runTest {
         val a = seedAccount()
-        repo.addExpense(amountMinor = 2500, currency = "CNY", baseAmountMinor = 2500, accountId = a.id, categoryId = null, date = 1_700_000_000_000, note = "午饭")
+        repo.addExpense(amountMinor = 2500, currency = "CNY", accountId = a.id, categoryId = null, date = 1_700_000_000_000, note = "午饭")
         assertEquals(1, db.transactionDao().observeRange(0, Long.MAX_VALUE).first().size)
         val outbox = db.outboxDao().pending()
         assertEquals(1, outbox.size)
@@ -62,7 +73,7 @@ class RepositoryOutboxTest {
     @Test
     fun softDelete_also_enqueues_outbox() = runTest {
         val a = seedAccount()
-        val id = repo.addExpense(100, "CNY", 100, a.id, null, 1_700_000_000_000, "")
+        val id = repo.addExpense(100, "CNY", a.id, null, 1_700_000_000_000, "")
         repo.softDelete(id)
         val tx = db.transactionDao().getById(id)!!
         assertNotNull(tx.deletedAt)
@@ -89,7 +100,7 @@ class RepositoryOutboxTest {
         }
         val broken = TransactionRepository(db, db.transactionDao(), failing, dev)
         val a = seedAccount()
-        val result = runCatching { broken.addExpense(2500, "CNY", 2500, a.id, null, 1_700_000_000_000, "午饭") }
+        val result = runCatching { broken.addExpense(2500, "CNY", a.id, null, 1_700_000_000_000, "午饭") }
         assertTrue(result.isFailure)
         assertEquals(0, db.transactionDao().observeRange(0, Long.MAX_VALUE).first().size)
     }

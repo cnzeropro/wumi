@@ -14,18 +14,25 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -34,6 +41,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.zero.wumi.data.local.entity.TxType
+import org.zero.wumi.util.Money
+import java.math.BigDecimal
 
 /**
  * 记一笔底部面板（spec §7.2，3 秒记完一笔）：三类型切换 + 金额大字 + 分类宫格 +
@@ -47,6 +56,10 @@ fun RecordSheet(
     vm: RecordViewModel = hiltViewModel(),
 ) {
     val s by vm.uiState.collectAsStateWithLifecycle()
+    val symbols by vm.currencySymbols.collectAsStateWithLifecycle()
+    // 金额符号按账户币种取 currencies 表，无符号币种回退代码
+    val currencySymbol = symbols[s.currency] ?: s.currency
+    var showFxDialog by remember { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -71,9 +84,9 @@ fun RecordSheet(
                     shape = SegmentedButtonDefaults.itemShape(2, 3),
                 ) { Text("转账") }
             }
-            // 金额大字
+            // 金额大字（符号随账户币种）
             Text(
-                "¥" + s.amountText.ifEmpty { "0" },
+                currencySymbol + s.amountText.ifEmpty { "0" },
                 fontSize = 48.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
@@ -139,6 +152,49 @@ fun RecordSheet(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            // 折算条（外币账户）：实时折算本位币 + 点按改当笔汇率（转账恒 1:1，不显示）
+            if (s.fxRate != null && s.type != TxType.TRANSFER) {
+                AssistChip(
+                    onClick = { showFxDialog = true },
+                    label = {
+                        Text(
+                            "≈ " + Money.format(s.basePreviewMinor ?: 0L, "CNY") +
+                                " · 汇率 ${s.fxRate}（点按修改）",
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (showFxDialog) {
+                // remember 在对话框进入组合时创建——预填当笔现值
+                var rateText by remember { mutableStateOf(s.fxRate ?: "") }
+                val valid = rateText.trim().toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
+                AlertDialog(
+                    onDismissRequest = { showFxDialog = false },
+                    title = { Text("修改当笔汇率") },
+                    text = {
+                        OutlinedTextField(
+                            value = rateText,
+                            onValueChange = { rateText = it },
+                            label = { Text("1 ${s.currency} = ? CNY") },
+                            isError = rateText.isNotBlank() && !valid,
+                            singleLine = true,
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            enabled = valid,
+                            onClick = {
+                                vm.setFxRate(rateText.trim())
+                                showFxDialog = false
+                            },
+                        ) { Text("确定") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showFxDialog = false }) { Text("取消") }
+                    },
+                )
             }
             // 自定义数字键盘 3×4：0-9 与小数点、退格
             listOf('1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫')

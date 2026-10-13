@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -20,6 +21,7 @@ import org.zero.wumi.data.repo.AccountRepository
 import org.zero.wumi.data.repo.CategoryRepository
 import org.zero.wumi.data.repo.CurrencyRepository
 import org.zero.wumi.data.repo.TransactionRepository
+import org.zero.wumi.util.FxConverter
 import org.zero.wumi.util.Money
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
@@ -48,7 +50,9 @@ data class RecordUiState(
     val selectedTargetAccountId: String? = null,
     val note: String = "",
     val date: Long = 0L,               // 0 = 现在
+    val currency: String = "CNY",      // 当前选中账户币种（金额大字符号/折算条用），缺省本位币
     val fxRate: String? = null,        // 源账户外币汇率快照（折算条用），本位币恒 null
+    val basePreviewMinor: Long? = null, // 折算条实时值：当前金额 × 当笔汇率（本位币最小单位），仅外币非空
     val canSave: Boolean = false,
 )
 
@@ -82,6 +86,8 @@ class RecordViewModel @Inject constructor(
         combine(_type, _amount, categories, accounts, _selection) { type, amount, cats, accs, sel ->
             val src = accs.find { it.id == sel.accountId }
             val tgt = accs.find { it.id == sel.targetAccountId }
+            // 金额按当前账户币种解析小数位（JPY 0 位、缺省 2 位），canSave 与 save 同源
+            val amountMinor = Money.parseToMinor(amount, Money.decimalsOf(src?.currency ?: "CNY"))
             RecordUiState(
                 type = type,
                 amountText = amount,
@@ -92,8 +98,10 @@ class RecordViewModel @Inject constructor(
                 selectedTargetAccountId = sel.targetAccountId,
                 note = sel.note,
                 date = sel.date,
+                currency = src?.currency ?: "CNY",
                 fxRate = sel.fxRate,
-                canSave = Money.parseToMinor(amount, 2)?.let { it > 0 } == true
+                basePreviewMinor = sel.fxRate?.let { r -> amountMinor?.let { FxConverter.toBaseMinor(it, r) } },
+                canSave = amountMinor?.let { it > 0 } == true
                         && sel.accountId != null
                         && (type == TxType.TRANSFER || cats.isEmpty() || sel.categoryId != null)
                         && (type != TxType.TRANSFER || (sel.targetAccountId != null && sel.targetAccountId != sel.accountId))
@@ -101,6 +109,11 @@ class RecordViewModel @Inject constructor(
                         && (type != TxType.TRANSFER || (src != null && tgt != null && tgt.currency == src.currency)),
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RecordUiState())
+
+    /** 币种符号映射（code→symbol，来自 currencies 表；金额大字显示用），无符号币种由 UI 回退代码。 */
+    val currencySymbols: StateFlow<Map<String, String>> = currencyRepo.observeAll()
+        .map { list -> list.associate { it.code to it.symbol } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     /** 切换类型并恢复该类型上次的分类选择（智能预选，spec §7.2）。 */
     fun setType(t: Int) {
@@ -125,6 +138,12 @@ class RecordViewModel @Inject constructor(
     }
 
     fun selectTargetAccount(id: String) { _selection.update { it.copy(targetAccountId = id) } }
+
+    /** 手改当笔汇率快照（折算条点按修改）；沿用 [selectAccount] 的 stale 守卫，账户已切走则丢弃。 */
+    fun setFxRate(rate: String) {
+        val accId = _selection.value.accountId ?: return
+        _selection.update { if (it.accountId == accId) it.copy(fxRate = rate) else it }
+    }
 
     fun setNote(s: String) { _selection.update { it.copy(note = s) } }
 
@@ -156,25 +175,27 @@ class RecordViewModel @Inject constructor(
     /**
      * 保存当前笔（金额/账户非法则直接忽略，UI 由 canSave 兜底）；成功后只清金额/备注/日期、
      * 保留账户与分类选择，便于连续记账；经 [onDone] 回传 txId 供 Snackbar 撤销（spec §7.2）。
+     * 币种/小数位取自选中账户；外币支出/收入把当笔汇率快照交仓库换算并落库（转账恒 1:1）。
      */
     fun save(onDone: (String) -> Unit) {
-        val amount = Money.parseToMinor(_amount.value, 2) ?: return
         val sel = _selection.value
         val accId = sel.accountId ?: return
         val type = _type.value
         viewModelScope.launch {
+            val acc = accounts.first().find { it.id == accId } ?: return@launch
+            val amount = Money.parseToMinor(_amount.value, Money.decimalsOf(acc.currency)) ?: return@launch
             val now = System.currentTimeMillis()
             val date = if (sel.date == 0L) now else sel.date
-            // v0.1 单本位币：原币金额 = 本位币金额，币种固定 CNY（多币种 v0.2）
             val txId = when (type) {
-                TxType.INCOME -> txRepo.addIncome(amount, "CNY", amount, accId, sel.categoryId, date, sel.note)
+                TxType.INCOME -> txRepo.addIncome(amount, acc.currency, accId, sel.categoryId, date, sel.note, fxRate = sel.fxRate ?: "1")
                 TxType.TRANSFER -> {
                     // 运行时守卫：目标账户缺失或与转出相同则忽略（canSave 已挡，此处防程序化调用）
                     val target = sel.targetAccountId
                     if (target == null || target == accId) return@launch
-                    txRepo.addTransfer(amount, "CNY", amount, accId, target, date, sel.note)
+                    // v0.2 转账限同币种，本位币冗余恒按 1:1 记原币金额
+                    txRepo.addTransfer(amount, acc.currency, amount, accId, target, date, sel.note)
                 }
-                else -> txRepo.addExpense(amount, "CNY", amount, accId, sel.categoryId, date, sel.note)
+                else -> txRepo.addExpense(amount, acc.currency, accId, sel.categoryId, date, sel.note, fxRate = sel.fxRate ?: "1")
             }
             _amount.value = ""
             _selection.update { it.copy(note = "", date = 0L) }

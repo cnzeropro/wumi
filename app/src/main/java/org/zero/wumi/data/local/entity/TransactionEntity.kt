@@ -26,7 +26,7 @@ data class TransactionEntity(
     val type: Int,
     val amountMinor: Long,                // 原币种最小单位
     val currency: String,
-    val exchangeRate: String? = null,     // 对本位币汇率快照（Decimal 字符串）；本币为 null
+    val exchangeRate: String? = null,     // 对本位币汇率快照（Decimal 字符串）；本币记 "1"，历史数据可能为 null
     val baseAmountMinor: Long,            // 本位币金额（统计冗余，spec §5.3）
     val accountId: String,
     val targetAccountId: String? = null,  // 仅转账
