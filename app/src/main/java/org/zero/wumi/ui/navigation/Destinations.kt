@@ -11,6 +11,9 @@ object Routes {
     const val ACCOUNTS = "accounts"
     const val CATEGORIES = "categories"
 
+    /** 二级路由：汇率管理（Task 8），从「我的」进入。 */
+    const val FX = "fx"
+
     /** 二级路由：数据导出（Task 12），从「我的」进入。 */
     const val EXPORT = "export"
 

@@ -16,11 +16,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-/** 我的页：账户管理/分类管理/数据导出入口 + 关于区（应用名、版本、slogan）。 */
+/** 我的页：账户管理/分类管理/汇率管理/数据导出入口 + 关于区（应用名、版本、slogan）。 */
 @Composable
 fun MineScreen(
     onOpenAccounts: () -> Unit = {},
     onOpenCategories: () -> Unit = {},
+    onOpenFx: () -> Unit = {},
     onOpenExport: () -> Unit = {},
 ) {
     Column(Modifier.fillMaxSize()) {
@@ -34,6 +35,12 @@ fun MineScreen(
             headlineContent = { Text("分类管理") },
             leadingContent = { Text("🏷️", style = MaterialTheme.typography.headlineSmall) },
             modifier = Modifier.clickable { onOpenCategories() },
+        )
+        HorizontalDivider()
+        ListItem(
+            headlineContent = { Text("汇率管理") },
+            leadingContent = { Text("💱", style = MaterialTheme.typography.headlineSmall) },
+            modifier = Modifier.clickable { onOpenFx() },
         )
         HorizontalDivider()
         ListItem(
