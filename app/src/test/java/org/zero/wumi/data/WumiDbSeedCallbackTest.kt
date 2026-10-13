@@ -71,4 +71,35 @@ class WumiDbSeedCallbackTest {
             dbFiles(ctx, name).forEach { it.delete() }
         }
     }
+
+    @Test
+    fun upgradePath_seedsCurrencies_whenCategoriesExist() = runTest {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        // 纳米时间戳命名，避免用例间或本地残留库文件互相污染
+        val name = "seed-upgrade-test-${System.nanoTime()}.db"
+        try {
+            // 首开：两套种子齐全，构成「升级前」库（categories 与 currencies 均已种）
+            val db1 = openDb(name, fresh = true)
+            try {
+                assertEquals(14, db1.categoryDao().observeAll().first().size)
+                assertEquals(21, db1.currencyDao().observeAll().first().size)
+                // 模拟 v0.1→v0.2 升级库：经 openHelper 直连清空 currencies，
+                // 制造「categories 有、currencies 空」——守卫若不独立，币种将永远缺失
+                db1.openHelper.writableDatabase.execSQL("DELETE FROM currencies")
+            } finally {
+                runCatching { db1.close() }
+            }
+            // 同名重开触发 onOpen：币种守卫独立命中空表 → 重新落种 21 条；
+            // 分类守卫命中「已种」→ 不得重复插入（两守卫互不影响）
+            val db2 = openDb(name, fresh = false)
+            try {
+                assertEquals(21, db2.currencyDao().observeAll().first().size)
+                assertEquals(14, db2.categoryDao().observeAll().first().size)
+            } finally {
+                runCatching { db2.close() }
+            }
+        } finally {
+            dbFiles(ctx, name).forEach { it.delete() }
+        }
+    }
 }
