@@ -35,7 +35,11 @@ object DatabaseModule {
     @Singleton
     @DeviceId
     fun deviceId(@ApplicationContext ctx: Context): String {
-        val bootstrap = Room.databaseBuilder(ctx, WumiDatabase::class.java, DB_NAME).build()
+        // bootstrap 连接与主库打开同一个库文件，必须同样挂迁移：
+        // 老用户升级后此处先开 version=1 的库，缺迁移会直接抛 IllegalStateException 崩在首启
+        val bootstrap = Room.databaseBuilder(ctx, WumiDatabase::class.java, DB_NAME)
+            .addMigrations(WumiDatabase.MIGRATION_1_2)
+            .build()
         return try {
             runBlocking {
                 val dao = bootstrap.settingDao()
@@ -51,6 +55,7 @@ object DatabaseModule {
     @Singleton
     fun db(@ApplicationContext ctx: Context, @DeviceId deviceId: String): WumiDatabase =
         Room.databaseBuilder(ctx, WumiDatabase::class.java, DB_NAME)
+            .addMigrations(WumiDatabase.MIGRATION_1_2)
             .addCallback(WumiDbCallback(deviceId))
             .build()
 
