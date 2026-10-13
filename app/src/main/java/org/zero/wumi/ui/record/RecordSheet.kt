@@ -169,7 +169,8 @@ fun RecordSheet(
             if (showFxDialog) {
                 // remember 在对话框进入组合时创建——预填当笔现值
                 var rateText by remember { mutableStateOf(s.fxRate ?: "") }
-                val valid = rateText.trim().toBigDecimalOrNull()?.let { it > BigDecimal.ZERO } == true
+                // 正数且有上界（十万倍，覆盖现实币种对）——防 "1e18" 等超大值在 save 换算时溢出崩溃
+                val valid = rateText.trim().toBigDecimalOrNull()?.let { it > BigDecimal.ZERO && it <= BigDecimal("100000") } == true
                 AlertDialog(
                     onDismissRequest = { showFxDialog = false },
                     title = { Text("修改当笔汇率") },

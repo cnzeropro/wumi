@@ -91,6 +91,17 @@ class RepositoryOutboxTest {
     }
 
     @Test
+    fun addTransfer_keeps_source_currency_and_1_to_1_base() = runTest {
+        // 转账限同币种（v0.2）：currency 取源账户币种，本位币冗余恒按 1:1 记原币金额
+        val usd = seedAccount(name = "美元户", emoji = "💳", type = AccountType.BANK, currency = "USD")
+        val usd2 = seedAccount(name = "美元储蓄", emoji = "🏦", type = AccountType.BANK, currency = "USD")
+        repo.addTransfer(amountMinor = 1000, currency = "USD", baseAmountMinor = 1000, accountId = usd.id, targetAccountId = usd2.id, date = 1_700_000_000_000, note = "转账")
+        val tx = db.transactionDao().observeRange(0, Long.MAX_VALUE).first().first()
+        assertEquals("USD", tx.tx.currency)
+        assertEquals(tx.tx.amountMinor, tx.tx.baseAmountMinor)
+    }
+
+    @Test
     fun addExpense_rolls_back_tx_when_outbox_enqueue_fails() = runTest {
         // spec §6.3 原子性：outbox 入队失败 → 事务回滚 → 业务表不得残留写入
         val failing = object : OutboxDao by db.outboxDao() {

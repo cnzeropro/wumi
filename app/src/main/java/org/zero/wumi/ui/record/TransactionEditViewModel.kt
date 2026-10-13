@@ -19,6 +19,7 @@ import org.zero.wumi.data.local.entity.TxType
 import org.zero.wumi.data.repo.AccountRepository
 import org.zero.wumi.data.repo.CategoryRepository
 import org.zero.wumi.data.repo.TransactionRepository
+import org.zero.wumi.util.FxConverter
 import org.zero.wumi.util.Money
 import java.math.BigDecimal
 import javax.inject.Inject
@@ -30,6 +31,7 @@ import javax.inject.Inject
 data class EditSelection(
     val loaded: Boolean = false,
     val currency: String = "CNY",
+    val exchangeRate: String? = null,  // 原交易汇率快照（转账恒 null）：保存时按它换算 base——编辑不改汇率，防外币行被 1:1 覆盖污染统计
     val date: Long = 0L,               // 编辑不改日期，保存时原样带回
     val categoryId: String? = null,
     val accountId: String? = null,
@@ -120,6 +122,7 @@ class TransactionEditViewModel @Inject constructor(
             _edit.value = EditSelection(
                 loaded = true,
                 currency = tx.currency,
+                exchangeRate = tx.exchangeRate,
                 date = tx.date,
                 categoryId = tx.categoryId,
                 accountId = tx.accountId,
@@ -162,8 +165,12 @@ class TransactionEditViewModel @Inject constructor(
         val target = e.targetAccountId
         if (type == TxType.TRANSFER && (target == null || target == accId)) return
         viewModelScope.launch {
-            // v0.1 单本位币：原币金额 = 本位币金额（与 RecordViewModel 口径一致）
-            txRepo.update(id, type, amount, e.currency, amount, accId, if (type == TxType.TRANSFER) target else null, if (type == TxType.TRANSFER) null else e.categoryId, e.date, e.note)
+            // base 按原交易汇率快照换算（FxConverter 唯一出口；编辑不改汇率——入口在记一笔侧），
+            // 防外币行被 1:1 覆盖污染统计；repo.update 的 copy 保留原 exchangeRate，与快照换算自洽。
+            // 转账恒 1:1（与 addTransfer 口径一致）；本位币快照即 "1"，结果不变
+            val base = if (type == TxType.TRANSFER) amount
+            else FxConverter.toBaseMinor(amount, e.exchangeRate ?: "1")
+            txRepo.update(id, type, amount, e.currency, base, accId, if (type == TxType.TRANSFER) target else null, if (type == TxType.TRANSFER) null else e.categoryId, e.date, e.note)
             onDone()
         }
     }
