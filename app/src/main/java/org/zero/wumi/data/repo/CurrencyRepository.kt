@@ -2,8 +2,10 @@ package org.zero.wumi.data.repo
 
 import androidx.room.withTransaction
 import java.math.BigDecimal
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import org.zero.wumi.data.fx.FxRateFetcher
 import org.zero.wumi.data.local.DefaultFx
 import org.zero.wumi.data.local.WumiDatabase
@@ -53,15 +55,18 @@ class CurrencyRepository(
     }
 
     /** 拉取并刷新全部币种（allowed = [DefaultFx] 全部 code），返回成功更新的币种数；拉取失败零写入。 */
-    suspend fun refreshAll(): Result<Int> = fetch(allCodes()).mapCatching { rates ->
-        val now = System.currentTimeMillis()
-        db.withTransaction {
-            rates.forEach { (code, r) ->
-                dao.updateRate(code, r, now)
-                outboxDao.enqueue(OutboxEntity(entityType = "currency", recordId = code, queuedAt = now))
+    suspend fun refreshAll(): Result<Int> = withContext(Dispatchers.IO) {
+        // fetch 为阻塞 IO（HttpURLConnection），整体切 IO 调度器，避免调用方在 Main 卡 UI
+        fetch(allCodes()).mapCatching { rates ->
+            val now = System.currentTimeMillis()
+            db.withTransaction {
+                rates.forEach { (code, r) ->
+                    dao.updateRate(code, r, now)
+                    outboxDao.enqueue(OutboxEntity(entityType = "currency", recordId = code, queuedAt = now))
+                }
             }
+            rates.size
         }
-        rates.size
     }
 
     /** 自动拉取开关（settings key autoFxRate），缺省开（非 "0" 即开）。 */
