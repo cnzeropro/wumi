@@ -18,9 +18,11 @@ import org.zero.wumi.data.local.entity.CategoryType
 import org.zero.wumi.data.local.entity.TxType
 import org.zero.wumi.data.repo.AccountRepository
 import org.zero.wumi.data.repo.CategoryRepository
+import org.zero.wumi.data.repo.CurrencyRepository
 import org.zero.wumi.data.repo.TransactionRepository
 import org.zero.wumi.util.Money
 import javax.inject.Inject
+import kotlinx.coroutines.flow.first
 
 /**
  * 记账表单的选择类状态（分类/账户/对方账户/备注/日期），合并为单一 MutableStateFlow——
@@ -32,6 +34,7 @@ data class Selection(
     val targetAccountId: String? = null,
     val note: String = "",
     val date: Long = 0L,               // 0 = 现在
+    val fxRate: String? = null,        // 源账户外币汇率快照（1 外币 = ? CNY），本位币恒 null
 )
 
 /** 记一笔 UI 状态（spec §7.2）：类型/金额大字/分类宫格/账户/备注/日期 + canSave 门禁。 */
@@ -45,6 +48,7 @@ data class RecordUiState(
     val selectedTargetAccountId: String? = null,
     val note: String = "",
     val date: Long = 0L,               // 0 = 现在
+    val fxRate: String? = null,        // 源账户外币汇率快照（折算条用），本位币恒 null
     val canSave: Boolean = false,
 )
 
@@ -58,6 +62,7 @@ class RecordViewModel @Inject constructor(
     private val txRepo: TransactionRepository,
     accountRepo: AccountRepository,
     categoryRepo: CategoryRepository,
+    private val currencyRepo: CurrencyRepository,
 ) : ViewModel() {
     private val _type = MutableStateFlow(TxType.EXPENSE)
     private val _amount = MutableStateFlow("")
@@ -75,6 +80,8 @@ class RecordViewModel @Inject constructor(
 
     val uiState: StateFlow<RecordUiState> =
         combine(_type, _amount, categories, accounts, _selection) { type, amount, cats, accs, sel ->
+            val src = accs.find { it.id == sel.accountId }
+            val tgt = accs.find { it.id == sel.targetAccountId }
             RecordUiState(
                 type = type,
                 amountText = amount,
@@ -85,10 +92,13 @@ class RecordViewModel @Inject constructor(
                 selectedTargetAccountId = sel.targetAccountId,
                 note = sel.note,
                 date = sel.date,
+                fxRate = sel.fxRate,
                 canSave = Money.parseToMinor(amount, 2)?.let { it > 0 } == true
                         && sel.accountId != null
                         && (type == TxType.TRANSFER || cats.isEmpty() || sel.categoryId != null)
-                        && (type != TxType.TRANSFER || (sel.targetAccountId != null && sel.targetAccountId != sel.accountId)),
+                        && (type != TxType.TRANSFER || (sel.targetAccountId != null && sel.targetAccountId != sel.accountId))
+                        // 转账限同币种（v0.2）：目标账户币种须与源账户一致
+                        && (type != TxType.TRANSFER || (src != null && tgt != null && tgt.currency == src.currency)),
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RecordUiState())
 
@@ -103,7 +113,16 @@ class RecordViewModel @Inject constructor(
         if (_type.value == TxType.INCOME) lastIncomeCategoryId = id else lastExpenseCategoryId = id
     }
 
-    fun selectAccount(id: String) { _selection.update { it.copy(accountId = id) } }
+    /** 选源账户：同步切换选中并清旧汇率，再异步查汇率表填充外币快照（本位币恒 null）。 */
+    fun selectAccount(id: String) {
+        _selection.update { it.copy(accountId = id, fxRate = null) }
+        viewModelScope.launch {
+            val acc = accounts.first().find { it.id == id } ?: return@launch
+            val rate = if (acc.currency == "CNY") null else currencyRepo.getByCode(acc.currency)?.rateToBase
+            // 期间用户可能已切走，仅当仍是当前账户才回写
+            _selection.update { if (it.accountId == id) it.copy(fxRate = rate) else it }
+        }
+    }
 
     fun selectTargetAccount(id: String) { _selection.update { it.copy(targetAccountId = id) } }
 

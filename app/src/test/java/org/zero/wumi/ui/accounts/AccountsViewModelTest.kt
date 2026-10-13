@@ -22,6 +22,7 @@ import org.robolectric.annotation.Config
 import org.zero.wumi.data.local.WumiDatabase
 import org.zero.wumi.data.local.entity.AccountType
 import org.zero.wumi.data.repo.AccountRepository
+import org.zero.wumi.data.repo.CurrencyRepository
 import org.zero.wumi.data.repo.TransactionRepository
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -39,7 +40,7 @@ class AccountsViewModelTest {
         val ctx = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(ctx, WumiDatabase::class.java).allowMainThreadQueries().build()
         repo = AccountRepository(db, "dev-test")
-        vm = AccountsViewModel(repo)
+        vm = AccountsViewModel(repo, CurrencyRepository(db, db.currencyDao(), db.outboxDao(), db.settingDao(), "dev-test"))
     }
 
     @After

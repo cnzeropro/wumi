@@ -1,6 +1,7 @@
 package org.zero.wumi.ui.accounts
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.zero.wumi.data.local.entity.AccountEntity
+import org.zero.wumi.util.FxConverter
 import org.zero.wumi.util.Money
 
 /** 账户管理页：列表（点击编辑）+ 新建 FAB；删除保护入口在编辑面板内。 */
@@ -39,9 +41,21 @@ fun AccountsScreen(vm: AccountsViewModel = hiltViewModel()) {
     ) { padding ->
         LazyColumn(Modifier.padding(padding).fillMaxSize()) {
             items(state.accounts, key = { it.id }) { a ->
+                // 外币账户第二行显示按当前汇率折算的本位币估值（余额 v0.1 为期初余额）
+                val rate = state.currencies.find { it.code == a.currency }
                 ListItem(
                     headlineContent = { Text(a.name) },
-                    supportingContent = { Text(accountTypeLabel(a.type)) },
+                    supportingContent = {
+                        Column {
+                            Text(accountTypeLabel(a.type))
+                            if (a.currency != "CNY" && rate != null) {
+                                Text(
+                                    "≈ " + Money.format(FxConverter.toBaseMinor(a.initialBalanceMinor, rate.rateToBase), "CNY"),
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                            }
+                        }
+                    },
                     leadingContent = { Text(a.emoji, style = MaterialTheme.typography.headlineSmall) },
                     trailingContent = { Text(Money.format(a.initialBalanceMinor, a.currency)) },
                     modifier = Modifier.clickable { editing = a },
@@ -57,6 +71,7 @@ fun AccountsScreen(vm: AccountsViewModel = hiltViewModel()) {
                 vm.save(null, it.name, it.emoji, it.currency, it.initialBalanceMinor, it.type, it.creditLimitMinor, it.billingDay, it.includeInNet)
             },
             existing = null,
+            currencies = state.currencies,
         )
     }
     editing?.let { e ->
@@ -67,6 +82,7 @@ fun AccountsScreen(vm: AccountsViewModel = hiltViewModel()) {
             },
             existing = e,
             onArchive = { vm.archiveOrDelete(e.id) },
+            currencies = state.currencies,
         )
     }
 }

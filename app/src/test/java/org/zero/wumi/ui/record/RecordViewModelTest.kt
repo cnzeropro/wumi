@@ -33,6 +33,7 @@ import org.zero.wumi.data.local.entity.CategoryType
 import org.zero.wumi.data.local.entity.TxType
 import org.zero.wumi.data.repo.AccountRepository
 import org.zero.wumi.data.repo.CategoryRepository
+import org.zero.wumi.data.repo.CurrencyRepository
 import org.zero.wumi.data.repo.TransactionRepository
 import org.zero.wumi.util.uuid7
 
@@ -52,7 +53,12 @@ class RecordViewModelTest {
         val ctx = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(ctx, WumiDatabase::class.java).allowMainThreadQueries().build()
         txRepo = TransactionRepository(db, db.transactionDao(), db.outboxDao(), "dev-test")
-        vm = RecordViewModel(txRepo, AccountRepository(db, "dev-test"), CategoryRepository(db, "dev-test"))
+        vm = RecordViewModel(
+            txRepo,
+            AccountRepository(db, "dev-test"),
+            CategoryRepository(db, "dev-test"),
+            CurrencyRepository(db, db.currencyDao(), db.outboxDao(), db.settingDao(), "dev-test"),
+        )
     }
 
     @After
@@ -61,9 +67,9 @@ class RecordViewModelTest {
         db.close()
     }
 
-    /** 普通 suspend 辅助函数（T5 模式）：种一个账户，返回 id。 */
-    private suspend fun seedAccount(): String =
-        AccountEntity(uuid7(), "现金", "💵", "CNY", 0, AccountType.CASH, createdAt = 1, updatedAt = 1, deviceId = "dev-test")
+    /** 普通 suspend 辅助函数（T5 模式）：种一个账户（币种默认 CNY），返回 id。 */
+    private suspend fun seedAccount(currency: String = "CNY"): String =
+        AccountEntity(uuid7(), "现金", "💵", currency, 0, AccountType.CASH, createdAt = 1, updatedAt = 1, deviceId = "dev-test")
             .also { db.accountDao().upsert(it) }.id
 
     /** 普通 suspend 辅助函数：种一个支出分类，返回 id。 */
@@ -159,5 +165,34 @@ class RecordViewModelTest {
         vm.inputDigit('2'); vm.inputDigit('5')
         advanceUntilIdle()
         assertFalse(vm.uiState.value.canSave)
+    }
+
+    @Test
+    fun canSave_transfer_rejects_cross_currency() = runTest(dispatcher) {
+        keepUiStateHot()
+        val usd = seedAccount("USD")
+        val cny = seedAccount("CNY")
+        vm.uiState.first { it.accounts.size >= 2 }        // 等 combine 首个发射
+        vm.setType(TxType.TRANSFER)
+        vm.selectAccount(usd)
+        vm.selectTargetAccount(cny)                       // 目标币种 ≠ 源账户币种
+        vm.inputDigit('1')
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.canSave)
+    }
+
+    @Test
+    fun select_fx_account_initializes_rate() = runTest(dispatcher) {
+        keepUiStateHot()
+        // 汇率表种子（DefaultFx USD=7.12），与生产 WumiDbCallback 同源
+        CurrencyRepository(db, db.currencyDao(), db.outboxDao(), db.settingDao(), "dev-test").seedIfEmpty()
+        val usd = seedAccount("USD")
+        vm.uiState.first { it.accounts.isNotEmpty() }
+        vm.selectAccount(usd)
+        assertEquals("7.12", vm.uiState.first { it.fxRate != null }.fxRate)
+        // 本位币恒 null：切回 CNY 账户后 fxRate 清空
+        val cny = seedAccount("CNY")
+        vm.selectAccount(cny)
+        assertEquals(null, vm.uiState.first { it.fxRate == null }.fxRate)
     }
 }
