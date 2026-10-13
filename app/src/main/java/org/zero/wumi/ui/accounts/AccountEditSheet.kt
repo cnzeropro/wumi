@@ -66,7 +66,8 @@ fun AccountEditSheet(
 ) {
     var name by remember { mutableStateOf(existing?.name ?: "") }
     var emoji by remember { mutableStateOf(existing?.emoji ?: "💵") }
-    var initial by remember { mutableStateOf(existing?.let { Money.format(it.initialBalanceMinor, it.currency) } ?: "") }
+    // 编辑态回填用 formatNumeric：无货币符号，可被 parseToMinor 直接解析（format 的 €/HKD 等符号会解析失败）
+    var initial by remember { mutableStateOf(existing?.let { Money.formatNumeric(it.initialBalanceMinor, it.currency) } ?: "") }
     var type by remember { mutableIntStateOf(existing?.type ?: AccountType.CASH) }
     var currency by remember { mutableStateOf(existing?.currency ?: "CNY") }
     var currencyExpanded by remember { mutableStateOf(false) }
