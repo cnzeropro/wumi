@@ -43,7 +43,7 @@ import org.zero.wumi.data.local.entity.CurrencyEntity
 
 /**
  * 汇率管理页（v0.2 Task 8）：币种列表（1 外币 = ? CNY，相对时间）+ 顶部「立即更新」「自动拉取」。
- * 点击行弹窗手改汇率（实时校验 BigDecimal > 0）；刷新结果与非法改率经 Snackbar 反馈。
+ * 点击行弹窗手改汇率（实时校验 0 ~ 100000）；刷新结果与非法改率经 Snackbar 反馈。
  */
 @Composable
 fun FxScreen(vm: FxViewModel = hiltViewModel()) {
@@ -113,11 +113,13 @@ private fun FxRow(c: CurrencyEntity, onClick: () -> Unit) {
     HorizontalDivider()
 }
 
-/** 手改汇率弹窗：预填现值，实时校验 BigDecimal 合法且 > 0，保存按钮随校验启用。 */
+/** 手改汇率弹窗：预填现值，实时校验 BigDecimal 合法且在 0 ~ 100000 之间，保存按钮随校验启用。 */
 @Composable
 private fun RateEditDialog(code: String, current: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
     var text by remember { mutableStateOf(current) }
-    val valid = runCatching { BigDecimal(text) > BigDecimal.ZERO }.getOrDefault(false)
+    // 正数且有上界（十万倍，覆盖现实币种对）——防超大值换算溢出崩溃（与 RecordSheet 折算条同口径）
+    val d = runCatching { BigDecimal(text) }.getOrNull()
+    val valid = d != null && d > BigDecimal.ZERO && d <= BigDecimal("100000")
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("修改 $code 汇率") },
@@ -128,6 +130,7 @@ private fun RateEditDialog(code: String, current: String, onDismiss: () -> Unit,
                 label = { Text("1 $code = ? CNY") },
                 singleLine = true,
                 isError = !valid,
+                supportingText = { Text("汇率需在 0 ~ 100000 之间") },
             )
         },
         confirmButton = {

@@ -82,6 +82,8 @@ class TransactionEditViewModel @Inject constructor(
     val uiState: StateFlow<TransactionEditUiState> =
         combine(_type, _amount, categories, accountRepo.observeAll(), _edit) { type, amount, cats, accs, e ->
             val decimals = Money.decimalsOf(e.currency)
+            val srcAcc = accs.find { it.id == e.accountId }
+            val tgtAcc = accs.find { it.id == e.targetAccountId }
             TransactionEditUiState(
                 loaded = e.loaded,
                 type = type,
@@ -97,7 +99,9 @@ class TransactionEditViewModel @Inject constructor(
                         && Money.parseToMinor(amount, decimals)?.let { it > 0 } == true
                         && e.accountId != null
                         && (type == TxType.TRANSFER || cats.isEmpty() || e.categoryId != null)
-                        && (type != TxType.TRANSFER || (e.targetAccountId != null && e.targetAccountId != e.accountId)),
+                        && (type != TxType.TRANSFER || (e.targetAccountId != null && e.targetAccountId != e.accountId))
+                        // 转账限同币种（v0.2）：目标账户币种须与源账户一致（与 RecordViewModel 同款门禁）
+                        && (type != TxType.TRANSFER || (srcAcc != null && tgtAcc != null && tgtAcc.currency == srcAcc.currency)),
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TransactionEditUiState())
 

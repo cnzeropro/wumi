@@ -42,10 +42,10 @@ class CurrencyRepository(
         dao.upsertAll(DefaultFx.defs(System.currentTimeMillis(), deviceId))
     }
 
-    /** 手改汇率：rate 须为 BigDecimal 合法且 >0；成功则更新并与 outbox 同事务入队。 */
+    /** 手改汇率：rate 须为 BigDecimal 合法且在 0 ~ 100000 之间（上界防换算溢出，与 UI 口径一致）；成功则更新并与 outbox 同事务入队。 */
     suspend fun updateRate(code: String, rate: String): Boolean {
         val d = runCatching { BigDecimal(rate) }.getOrNull() ?: return false
-        if (d <= BigDecimal.ZERO) return false
+        if (d <= BigDecimal.ZERO || d > BigDecimal("100000")) return false
         val now = System.currentTimeMillis()
         db.withTransaction {
             dao.updateRate(code, d.stripTrailingZeros().toPlainString(), now)

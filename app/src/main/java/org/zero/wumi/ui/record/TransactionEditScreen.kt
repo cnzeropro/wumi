@@ -128,20 +128,31 @@ fun TransactionEditScreen(
                 )
             }
         }
-        // 转账：目标账户必须 ≠ 源账户（与记一笔一致）
+        // 转账：目标账户必须 ≠ 源账户，且限同币种（跨币种置灰，与记一笔一致）
         if (s.type == TxType.TRANSFER) {
+            val source = s.accounts.find { it.id == s.selectedAccountId }
+            val candidates = s.accounts.filter { it.id != s.selectedAccountId }
+            val hasCrossCurrency = source != null && candidates.any { it.currency != source.currency }
             Text("转入账户", style = MaterialTheme.typography.labelMedium)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
             ) {
-                s.accounts.filter { it.id != s.selectedAccountId }.forEach { a ->
+                candidates.forEach { a ->
                     FilterChip(
                         selected = s.selectedTargetAccountId == a.id,
+                        enabled = source == null || a.currency == source.currency,
                         onClick = { vm.selectTargetAccount(a.id) },
                         label = { Text("${a.emoji}${a.name}") },
                     )
                 }
+            }
+            if (hasCrossCurrency) {
+                Text(
+                    "暂不支持跨币种转账",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
         OutlinedTextField(

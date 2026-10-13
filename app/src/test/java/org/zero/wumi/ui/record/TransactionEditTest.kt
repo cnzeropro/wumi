@@ -3,9 +3,20 @@ package org.zero.wumi.ui.record
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -20,26 +31,34 @@ import org.zero.wumi.data.local.entity.AccountType
 import org.zero.wumi.data.local.entity.CategoryEntity
 import org.zero.wumi.data.local.entity.CategoryType
 import org.zero.wumi.data.local.entity.TxType
+import org.zero.wumi.data.repo.AccountRepository
+import org.zero.wumi.data.repo.CategoryRepository
 import org.zero.wumi.data.repo.TransactionRepository
 import org.zero.wumi.util.uuid7
 
-/** 交易编辑（Task 10）：update 保持 id/createdAt 只 bump updatedAt（LWW 语义）+ outbox 入队 + 软删后不可再取。 */
+/** 交易编辑（Task 10）：update 保持 id/createdAt 只 bump updatedAt（LWW 语义）+ outbox 入队 + 软删后不可再取 + canSave 门禁。 */
+@OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class TransactionEditTest {
+    private val dispatcher = StandardTestDispatcher()
     private lateinit var db: WumiDatabase
     private lateinit var repo: TransactionRepository
+    private lateinit var vm: TransactionEditViewModel
     private val dev = "dev-test"
 
     @Before
     fun setup() {
+        Dispatchers.setMain(dispatcher)
         val ctx = ApplicationProvider.getApplicationContext<Context>()
         db = Room.inMemoryDatabaseBuilder(ctx, WumiDatabase::class.java).allowMainThreadQueries().build()
         repo = TransactionRepository(db, db.transactionDao(), db.outboxDao(), dev)
+        vm = TransactionEditViewModel(repo, AccountRepository(db, dev), CategoryRepository(db, dev))
     }
 
     @After
     fun teardown() {
+        Dispatchers.resetMain()
         db.close()
     }
 
@@ -85,5 +104,20 @@ class TransactionEditTest {
         val after = db.transactionDao().getById(id)!!
         assertNull(after.targetAccountId)                 // 目标账户清空，互斥字段不残留
         assertEquals(cat.id, after.categoryId)
+    }
+
+    @Test
+    fun canSave_transfer_rejects_cross_currency() = runTest(dispatcher) {
+        // uiState 是 WhileSubscribed——挂一个热收集者让上游激活，.value 才会随动作刷新（同 RecordViewModelTest）
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.uiState.collect() }
+        val cny = AccountEntity(uuid7(), "现金", "💵", "CNY", 0, AccountType.CASH, createdAt = 1, updatedAt = 1, deviceId = dev).also { db.accountDao().upsert(it) }
+        val usd = AccountEntity(uuid7(), "美元现金", "💵", "USD", 0, AccountType.CASH, createdAt = 1, updatedAt = 1, deviceId = dev).also { db.accountDao().upsert(it) }
+        val id = repo.addExpense(2500, "CNY", cny.id, null, 1_700_000_000_000, "午饭")
+        vm.load(id, onMissing = {})
+        vm.uiState.first { it.loaded }                    // 等预填完成（Room 后台线程，advanceUntilIdle 推不动）
+        vm.setType(TxType.TRANSFER)
+        vm.selectTargetAccount(usd.id)                    // 编辑态切转账并选跨币种目标
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.canSave)
     }
 }
