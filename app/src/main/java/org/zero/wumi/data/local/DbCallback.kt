@@ -21,35 +21,60 @@ object DefaultSeed {
 }
 
 /**
- * 预置默认分类的数据库回调，供 Hilt 模块以 addCallback 挂载。
+ * 预置默认分类与币种的数据库回调，供 Hilt 模块以 addCallback 挂载。
  *
  * 用 [onOpen] 而非 onCreate 做幂等种子：deviceId 读取会先用无 callback 的独立连接
  * 建库，主库打开时文件已存在，onCreate 不再触发；改为「表空才插入」，与建库顺序无关。
  * 以全表 COUNT（含已软删）判断是否种过，避免用户删光分类后重启被重新种回。
  * INSERT 包在事务里：首启中途被杀时种子要么全写入要么全回滚，不会残留半份种子。
+ *
+ * 分类与币种各自独立 COUNT 守卫 + 独立事务：v0.1→v0.2 升级库分类已有而 currencies
+ * 为空，若共用守卫或提前 return，币种种子将永远不会落地。
  */
 class WumiDbCallback(private val deviceId: String) : RoomDatabase.Callback() {
     override fun onOpen(db: SupportSQLiteDatabase) {
         super.onOpen(db)
-        val seeded = db.query("SELECT COUNT(*) FROM categories").use { cursor ->
+        val now = System.currentTimeMillis()
+        val categoriesSeeded = db.query("SELECT COUNT(*) FROM categories").use { cursor ->
             cursor.moveToFirst()
             cursor.getLong(0) > 0L
         }
-        if (seeded) return
-        val now = System.currentTimeMillis()
-        db.beginTransaction()
-        try {
-            DefaultSeed.categories(now, deviceId).forEach { c ->
-                db.execSQL(
-                    // VALUES 顺序须与 categories 列顺序严格一致：
-                    // id, parentId, type, name, emoji, sortOrder, archivedAt, createdAt, updatedAt, deletedAt, deviceId
-                    "INSERT INTO categories VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                    arrayOf(c.id, c.parentId, c.type, c.name, c.emoji, c.sortOrder, c.archivedAt, c.createdAt, c.updatedAt, c.deletedAt, c.deviceId),
-                )
+        if (!categoriesSeeded) {
+            db.beginTransaction()
+            try {
+                DefaultSeed.categories(now, deviceId).forEach { c ->
+                    db.execSQL(
+                        // VALUES 顺序须与 categories 列顺序严格一致：
+                        // id, parentId, type, name, emoji, sortOrder, archivedAt, createdAt, updatedAt, deletedAt, deviceId
+                        "INSERT INTO categories VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                        arrayOf(c.id, c.parentId, c.type, c.name, c.emoji, c.sortOrder, c.archivedAt, c.createdAt, c.updatedAt, c.deletedAt, c.deviceId),
+                    )
+                }
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
             }
-            db.setTransactionSuccessful()
-        } finally {
-            db.endTransaction()
+        }
+        // 币种种子：仅首次（幂等），后续汇率由周期拉取/用户手改维护，种子不覆盖
+        val currenciesSeeded = db.query("SELECT COUNT(*) FROM currencies").use { cursor ->
+            cursor.moveToFirst()
+            cursor.getLong(0) > 0L
+        }
+        if (!currenciesSeeded) {
+            db.beginTransaction()
+            try {
+                DefaultFx.defs(now, deviceId).forEach { c ->
+                    db.execSQL(
+                        // VALUES 顺序须与 currencies 列顺序严格一致（与 MIGRATION_1_2 建表列序一致）：
+                        // code, name, symbol, decimals, rateToBase, rateUpdatedAt, id, createdAt, updatedAt, deletedAt, deviceId
+                        "INSERT OR IGNORE INTO currencies VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                        arrayOf(c.code, c.name, c.symbol, c.decimals, c.rateToBase, c.rateUpdatedAt, c.id, c.createdAt, c.updatedAt, c.deletedAt, c.deviceId),
+                    )
+                }
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
         }
     }
 }

@@ -51,6 +51,11 @@ class WumiDbSeedCallbackTest {
             val db1 = openDb(name, fresh = true)
             try {
                 assertEquals(14, db1.categoryDao().observeAll().first().size)
+                // 币种种子同次落盘：21 条（CNY + 20 外币）；抽查 CNY 全字段验证 INSERT 列序
+                assertEquals(21, db1.currencyDao().observeAll().first().size)
+                val cny = db1.currencyDao().getByCode("CNY")!!
+                assertEquals("人民币", cny.name)
+                assertEquals("1", cny.rateToBase)
             } finally {
                 runCatching { db1.close() }
             }
@@ -58,6 +63,7 @@ class WumiDbSeedCallbackTest {
             val db2 = openDb(name, fresh = false)
             try {
                 assertEquals(14, db2.categoryDao().observeAll().first().size)
+                assertEquals(21, db2.currencyDao().observeAll().first().size)
             } finally {
                 runCatching { db2.close() }
             }
