@@ -17,6 +17,8 @@ import org.robolectric.annotation.Config
 import org.zero.wumi.data.local.WumiDatabase
 import org.zero.wumi.data.local.entity.AccountEntity
 import org.zero.wumi.data.local.entity.AccountType
+import org.zero.wumi.data.local.entity.CategoryEntity
+import org.zero.wumi.data.local.entity.CategoryType
 import org.zero.wumi.data.local.entity.TxType
 import org.zero.wumi.data.repo.TransactionRepository
 import org.zero.wumi.util.uuid7
@@ -70,5 +72,18 @@ class TransactionEditTest {
         assertNotNull(repo.getWithRefs(id))
         repo.softDelete(id)
         assertNull(repo.getWithRefs(id))
+    }
+
+    @Test
+    fun update_transfer_to_expense_clears_target() = runTest {
+        val a = AccountEntity(uuid7(), "现金", "💵", "CNY", 0, AccountType.CASH, createdAt = 1, updatedAt = 1, deviceId = dev).also { db.accountDao().upsert(it) }
+        val b = AccountEntity(uuid7(), "银行卡", "🏦", "CNY", 0, AccountType.BANK, createdAt = 1, updatedAt = 1, deviceId = dev).also { db.accountDao().upsert(it) }
+        val cat = CategoryEntity(uuid7(), null, CategoryType.EXPENSE, "餐饮", "🍜", 99, createdAt = 1, updatedAt = 1, deviceId = dev).also { db.categoryDao().upsert(it) }
+        val id = repo.addTransfer(1000, "CNY", 1000, a.id, b.id, 1L, "转账")
+        assertEquals(b.id, db.transactionDao().getById(id)!!.targetAccountId)
+        repo.update(id, TxType.EXPENSE, 1000, "CNY", 1000, a.id, null, cat.id, 1L, "改为支出")
+        val after = db.transactionDao().getById(id)!!
+        assertNull(after.targetAccountId)                 // 目标账户清空，互斥字段不残留
+        assertEquals(cat.id, after.categoryId)
     }
 }

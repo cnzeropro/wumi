@@ -34,8 +34,18 @@ object Money {
         }
     }
 
+    /** 文本转最小单位；支持前导负号（与 [format] 的 `-¥` 输出互逆），非法或空返回 null。 */
     fun parseToMinor(text: String, decimals: Int): Long? {
-        val cleaned = text.replace(",", "").trim().removePrefix("¥").removePrefix("$").trim()
+        val trimmed = text.trim()
+        val negative = trimmed.startsWith("-")
+        val minor = parseBody(if (negative) trimmed.removePrefix("-") else trimmed, decimals)
+            ?: return null
+        return if (negative) -minor else minor
+    }
+
+    /** 去千分位与货币符号后的正文解析（不含正负号）。 */
+    private fun parseBody(body: String, decimals: Int): Long? {
+        val cleaned = body.replace(",", "").trim().removePrefix("¥").removePrefix("$").trim()
         if (cleaned.isEmpty()) return null
         return try {
             BigDecimal(cleaned).setScale(decimals, RoundingMode.HALF_UP)

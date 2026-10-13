@@ -16,4 +16,10 @@ class MoneyTest {
     @Test fun parse_more_decimals_rounds_half_up() { assertEquals(1235L, Money.parseToMinor("12.345", 2)) }
     @Test fun parse_garbage_returns_null() { assertNull(Money.parseToMinor("abc", 2)) }
     @Test fun parse_empty_returns_null() { assertNull(Money.parseToMinor("", 2)) }
+    @Test
+    fun parse_negative_leading_sign() {
+        // 格式输出 -¥1,234.56，粘贴回来也应可解析（v0.1 缺口）
+        assertEquals(-123456L, Money.parseToMinor("-¥1,234.56", 2))
+        assertEquals(-1235L, Money.parseToMinor("-1235", 0))
+    }
 }

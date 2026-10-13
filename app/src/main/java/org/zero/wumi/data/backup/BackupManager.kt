@@ -42,19 +42,22 @@ class BackupManager(private val db: WumiDatabase, private val dir: File) {
         dir.mkdirs()
     }
 
+    /** 一致性快照（读事务，4 表含软删墓碑）。[backupNow] 与导出页共用单一出口。 */
+    suspend fun snapshot(now: LocalDateTime = LocalDateTime.now()): BackupFile = db.withTransaction {
+        BackupFile(
+            exportedAt = now.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+            accounts = db.accountDao().allForBackup(),
+            categories = db.categoryDao().allForBackup(),
+            transactions = db.transactionDao().allForBackup(),
+            settings = db.settingDao().allForBackup(),
+        )
+    }
+
     /** 全量导出为单 JSON 文件（含软删墓碑），返回原子 rename 后的最终文件。 */
     suspend fun backupNow(): File = withContext(Dispatchers.IO) {
-        val snapshot = db.withTransaction {
-            BackupFile(
-                exportedAt = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
-                accounts = db.accountDao().allForBackup(),
-                categories = db.categoryDao().allForBackup(),
-                transactions = db.transactionDao().allForBackup(),
-                settings = db.settingDao().allForBackup(),
-            )
-        }
+        val snapshotData = snapshot()
         val tmp = File(dir, "wumi-backup-${LocalDateTime.now().format(stamp)}.json.tmp")
-        tmp.writeText(json.encodeToString(snapshot))
+        tmp.writeText(json.encodeToString(snapshotData))
         val final = File(dir, tmp.name.removeSuffix(".tmp"))
         if (!tmp.renameTo(final)) {
             tmp.delete()

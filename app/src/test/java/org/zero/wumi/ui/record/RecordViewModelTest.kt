@@ -147,4 +147,17 @@ class RecordViewModelTest {
         val s = vm.uiState.first { it.canSave }           // 挂起等账户发射与重算
         assertTrue(s.canSave)
     }
+
+    @Test
+    fun canSave_transfer_rejects_same_target_as_source() = runTest(dispatcher) {
+        keepUiStateHot()
+        val acc = seedAccount()
+        vm.uiState.first { it.accounts.isNotEmpty() }     // 等 combine 首个发射
+        vm.setType(TxType.TRANSFER)
+        vm.selectAccount(acc)
+        vm.selectTargetAccount(acc)                       // 目标与转出相同
+        vm.inputDigit('2'); vm.inputDigit('5')
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.canSave)
+    }
 }
