@@ -60,6 +60,8 @@ import org.zero.wumi.ui.theme.WumiSeed
 import org.zero.wumi.util.Money
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+import java.util.Locale
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 /**
@@ -105,7 +107,7 @@ private fun StatsContent(s: StatsUiState, onPrevMonth: () -> Unit, onNextMonth: 
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
-                        Text("本月还没有记录", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("本月暂无收支记录", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -119,7 +121,7 @@ private fun StatsContent(s: StatsUiState, onPrevMonth: () -> Unit, onNextMonth: 
                         income = dayBars.map { it.incomeMinor.toFloat() },
                         expense = dayBars.map { it.expenseMinor.toFloat() },
                         columnWidth = 6.dp,
-                        bottomFormatter = CartesianValueFormatter { _, x, _ -> "${x.toInt()}日" },
+                        bottomFormatter = CartesianValueFormatter { _, x, _ -> "${x.roundToInt()}日" },
                         modifier = Modifier.fillMaxWidth().height(200.dp),
                     )
                 }
@@ -233,7 +235,7 @@ private fun LegendDot(color: Color, label: String) {
 /** 近 6 月横轴标签：柱/折线共用「M 月」（x 为 0..5 轴下标，映射回 monthBars 取月值）。 */
 private fun monthAxisFormatter(monthBars: List<MonthBar>): CartesianValueFormatter {
     val labels = monthBars.map { "${it.month.monthValue}月" }
-    return CartesianValueFormatter { _, x, _ -> labels.getOrNull(x.toInt()).orEmpty() }
+    return CartesianValueFormatter { _, x, _ -> labels.getOrNull(x.roundToInt()).orEmpty() }
 }
 
 /**
@@ -315,5 +317,6 @@ private fun DualLineChart(
 private fun startAxisFormatter(): CartesianValueFormatter =
     CartesianValueFormatter { _, v, _ ->
         val yuan = v.toDouble() / 100.0
-        if (yuan >= 10000.0) "¥%.1f万".format(yuan / 10000.0) else Money.format(v.roundToLong(), "CNY")
+        if (yuan >= 10000.0) String.format(Locale.CHINA, "¥%.1f万", yuan / 10000.0)
+        else Money.format(v.roundToLong(), "CNY")
     }

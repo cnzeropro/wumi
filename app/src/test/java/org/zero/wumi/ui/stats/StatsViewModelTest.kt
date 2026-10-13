@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -49,8 +50,8 @@ class StatsViewModelTest {
     }
 
     /** 普通 suspend 辅助函数（T5 模式）：种一个本位币账户，返回 id。 */
-    private suspend fun seedAccount(): String =
-        AccountEntity(uuid7(), "现金", "💵", "CNY", 0, AccountType.CASH, createdAt = 1, updatedAt = 1, deviceId = "dev-test")
+    private suspend fun seedAccount(name: String = "现金"): String =
+        AccountEntity(uuid7(), name, "💵", "CNY", 0, AccountType.CASH, createdAt = 1, updatedAt = 1, deviceId = "dev-test")
             .also { db.accountDao().upsert(it) }.id
 
     @Test
@@ -89,5 +90,21 @@ class StatsViewModelTest {
         assertEquals(ym, bars[5].month)
         assertEquals(7500L, bars[5].incomeMinor)
         assertEquals(250L, bars[5].expenseMinor)
+    }
+
+    @Test
+    fun day_bars_exclude_transfer_only_days() = runTest(dispatcher) {
+        val repo = TransactionRepository(db, db.transactionDao(), db.outboxDao(), "dev-test")
+        val from = seedAccount()
+        val to = seedAccount("储蓄卡")
+        val zone = ZoneId.systemDefault()
+        val ym = YearMonth.now(zone)
+        val day = ym.atDay(15).atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+
+        // 当月仅一笔转账（纯转账日）：转账不计收支，该日不应出现 0 高柱（T13 裁决 B 的回归保护）
+        repo.addTransfer(50, "CNY", 50, from, to, day, "")
+
+        val s = vm.uiState.first { it.monthBars != null }
+        assertTrue(s.dayBars!!.isEmpty())
     }
 }
