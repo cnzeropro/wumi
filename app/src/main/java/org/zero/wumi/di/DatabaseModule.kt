@@ -12,6 +12,7 @@ import org.zero.wumi.data.local.WumiDatabase
 import org.zero.wumi.data.local.WumiDbCallback
 import org.zero.wumi.data.local.dao.AccountDao
 import org.zero.wumi.data.local.dao.CategoryDao
+import org.zero.wumi.data.local.dao.CurrencyDao
 import org.zero.wumi.data.local.dao.OutboxDao
 import org.zero.wumi.data.local.dao.SettingDao
 import org.zero.wumi.data.local.dao.TransactionDao
@@ -73,4 +74,7 @@ object DatabaseModule {
 
     @Provides
     fun settingDao(db: WumiDatabase): SettingDao = db.settingDao()
+
+    @Provides
+    fun currencyDao(db: WumiDatabase): CurrencyDao = db.currencyDao()
 }
