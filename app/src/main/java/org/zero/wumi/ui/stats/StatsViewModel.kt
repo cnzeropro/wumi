@@ -32,6 +32,10 @@ class StatsViewModel @Inject constructor(
     private val zone: ZoneId = ZoneId.systemDefault()
     private val _month = MutableStateFlow(YearMonth.now(zone))
 
+    // 近 6 月轴基准月：构造期捕获。数据窗 monthBarsRange 同样锚定构造期，若发射期重取 now()
+    // 会出现「窗不漂而轴漂」，跨月后本月柱恒 0（T11 审查 Minor 1 修复）
+    private val anchorMonth: YearMonth = YearMonth.now(zone)
+
     /** 当前查看的月份。 */
     val month: StateFlow<YearMonth> = _month.asStateFlow()
 
@@ -40,9 +44,9 @@ class StatsViewModel @Inject constructor(
         m.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli() to
             m.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
 
-    // 近 6 月固定窗（含当前月）：月柱专用，切月只重算不换窗，结果不变
+    // 近 6 月固定窗（含基准月）：月柱专用，切月只重算不换窗，结果不变
     private val monthBarsRange: Pair<Long, Long> =
-        monthRange(YearMonth.now(zone).minusMonths(5)).first to monthRange(YearMonth.now(zone)).second
+        monthRange(anchorMonth.minusMonths(5)).first to monthRange(anchorMonth).second
 
     /** 本组收入小计（转账不计：非收入按 0 汇总）。 */
     private fun List<TxWithRefs>.sumIncome(): Long =
@@ -52,19 +56,22 @@ class StatsViewModel @Inject constructor(
     private fun List<TxWithRefs>.sumExpense(): Long =
         sumOf { ref -> if (ref.tx.type == TxType.EXPENSE) ref.tx.baseAmountMinor else 0L }
 
-    /** 日分组（时间升序供图表横轴）：收入/支出分列，转账不计，空日不产生条目。 */
+    /**
+     * 日分组（时间升序供图表横轴）：收入/支出分列，转账不计。
+     * 全 0 日（纯转账日）过滤掉不渲染 0 高柱（T11 审查 Minor 2 裁决）。
+     */
     private fun dayBarsOf(txs: List<TxWithRefs>): List<DayBar> =
         txs.groupBy { Instant.ofEpochMilli(it.tx.date).atZone(zone).toLocalDate() }
             .map { (date, items) -> DayBar(date, items.sumIncome(), items.sumExpense()) }
+            .filter { it.incomeMinor != 0L || it.expenseMinor != 0L }
             .sortedBy { it.date }
 
-    /** 月分组（近 6 月固定轴，时间升序）：空月补 0，保证横轴连续。 */
+    /** 月分组（近 6 月固定轴，时间升序）：空月补 0，保证横轴连续；轴基准为构造期 [anchorMonth]。 */
     private fun monthBarsOf(txs: List<TxWithRefs>): List<MonthBar> {
         val sums = txs.groupBy { YearMonth.from(Instant.ofEpochMilli(it.tx.date).atZone(zone)) }
             .mapValues { entry -> Pair(entry.value.sumIncome(), entry.value.sumExpense()) }
-        val now = YearMonth.now(zone)
         return (5 downTo 0).map { back ->
-            val m = now.minusMonths(back.toLong())
+            val m = anchorMonth.minusMonths(back.toLong())
             val ie = sums[m] ?: Pair(0L, 0L)
             MonthBar(m, ie.first, ie.second)
         }
